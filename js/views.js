@@ -12,11 +12,12 @@ const rgbToString = (c) => `rgb(${c.r},${c.g},${c.b})`;
 
 
 export class Renderer {
-    constructor(canvasId, layout, grid) {
+    constructor(canvasId, layout, grid, onHexClick = null) {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
         this.layout = layout;
         this.grid = grid;
+        this.onHexClick = onHexClick;
 
         this.hoveredHex = null;
         this.sensitivity = 80;
@@ -36,8 +37,8 @@ export class Renderer {
 
     initLegend() {
         const legend = document.getElementById('legend');
-        legend.innerHTML = "<strong>Límites Primos</strong>";
-        const labels = { 1: "Octava", 3: "3 (5tas)", 5: "5 (3ras)", 7: "7 (Harm)", 11: "11 (Neutro)", 13: "13", 17: ">13" };
+        legend.innerHTML = "<strong>Prime Limits</strong>";
+        const labels = { 1: "Octave", 3: "3 (5th)", 5: "5 (3rd)", 7: "7 (Harm)", 11: "11 (Neutral)", 13: "13", 17: ">13" };
         [1, 3, 5, 7, 11, 13, 17].forEach(l => {
             const color = LIMIT_COLORS[l] || LIMIT_COLORS[17];
             legend.innerHTML += `
@@ -85,8 +86,9 @@ export class Renderer {
 
     handleMouseDown(e) {
         if (this.hoveredHex) {
-            this.grid.toggleHex(this.hoveredHex.hex);
-            this.refresh(); // Toggle dispara notify, pero recalculamos heatmap aquí para inmediatez
+            if (this.onHexClick) {
+                this.onHexClick(this.hoveredHex);
+            }
         }
     }
 
@@ -99,7 +101,7 @@ export class Renderer {
             }
             ui.innerHTML = info;
         } else {
-            ui.innerHTML = "Click para activar notas.";
+            ui.innerHTML = "Click to activate notes.";
         }
     }
 

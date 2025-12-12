@@ -16,8 +16,32 @@ const layout = new Layout(HEX_SIZE, { x: window.innerWidth/2, y: window.innerHei
 // Generar Mapa Inicial
 grid.generateMap(MAP_RADIUS);
 
+// Definimos qué pasa al hacer click
+const handleHexClick = (cellData) => {
+    // 1. Cambiar estado visual (Modelo)
+    const wasActive = cellData.active;
+    grid.toggleHex(cellData.hex);
+
+    // 2. Disparar sonido si se acaba de activar (Audio)
+    if (!wasActive) {
+        // Si el contexto no existe, lo creamos ahora mismo.
+        if (!synth.ctx) {
+            synth.init();
+        }
+        // Si el navegador lo suspendió (política de autoplay), lo reanudamos.
+        if (synth.ctx.state === 'suspended') {
+            synth.ctx.resume();
+        }
+        // Ahora es seguro acceder a 'currentTime' porque 'ctx' ya existe
+        synth.playTone(cellData.freq, synth.ctx.currentTime);
+    }
+
+    // 3. Refrescar vista
+    renderer.refresh();
+};
+
 // Inicialización de Vistas
-const renderer = new Renderer('hexCanvas', layout, grid);
+const renderer = new Renderer('hexCanvas', layout, grid, handleHexClick);
 const linearViz = new LinearVisualizer('linearCanvas', grid);
 
 // Inicialización de Audio
