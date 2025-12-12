@@ -754,63 +754,34 @@ class LinearVisualizer {
 
 
 /**
- * MOTOR DE AUDIO MEJORADO (Síntesis Aditiva)
+ * MOTOR DE AUDIO (Arpa Etérea / Stereo)
  */
 class Synth {
     constructor() {
         this.ctx = null;
         this.masterGain = null;
-        this.customWave = null;
     }
 
     init() {
         if (!this.ctx) {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
 
-            // 1. Crear Forma de Onda Personalizada (Síntesis Aditiva)
-            // Esto nos da un sonido "orgánico" con armónicos precisos para la roughness
-            const numHarmonics = 32;
-            const real = new Float32Array(numHarmonics);
-            const imag = new Float32Array(numHarmonics);
-
-            // Diseño del Timbre (Tipo Piano Eléctrico / Órgano Suave)
-            // real[n] son los cosenos (fase), imag[n] son los senos (amplitud)
-            // n=1 es la fundamental, n=2 la octava, etc.
-
-            imag[0] = 0; // DC Offset (siempre 0)
-            imag[1] = 1.0;  // Fundamental (Cuerpo)
-            imag[2] = 0.5;  // 2º Armónico (Octava - Calidez)
-            imag[3] = 0.3;  // 3º Armónico (Quinta - Color)
-            imag[4] = 0.20; // 4º Armónico
-            imag[5] = 0.15; // 5º Armónico (Vital para detectar 3ras mayores)
-
-            // El resto de armónicos decaen suavemente para quitar lo "áspero"
-            for (let i = 6; i < numHarmonics; i++) {
-                imag[i] = 0.4 / Math.pow(i, 1.5); // Caída exponencial suave
-            }
-
-            this.customWave = this.ctx.createPeriodicWave(real, imag);
-
-            // 2. Cadena de Audio
             this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.value = 0.25; // Un poco más bajo ya que la onda es rica
+            this.masterGain.gain.value = 0.3;
 
-            // Filtro Paso Bajo (Lowpass) suave para "redondear" el brillo final
-            const filter = this.ctx.createBiquadFilter();
-            filter.type = "lowpass";
-            filter.frequency.value = 3500; // Cortar brillo excesivo
-            filter.Q.value = 0.5;
-
-            // Compresor (Limiter)
+            // Compresor suave para unir el sonido
             const compressor = this.ctx.createDynamicsCompressor();
-            compressor.threshold.value = -12;
-            compressor.knee.value = 30;
-            compressor.ratio.value = 12;
-            compressor.attack.value = 0.005;
-            compressor.release.value = 0.25;
+            compressor.threshold.value = -20;
+            compressor.knee.value = 10;
+            compressor.ratio.value = 4;
+            compressor.attack.value = 0.02;
+            compressor.release.value = 0.2;
 
-            this.masterGain.connect(filter);
-            filter.connect(compressor);
+            // Reverb simulada (Fake Reverb usando release largo en notas)
+            // Para una reverb real necesitaríamos cargar un Impulse Response (IR),
+            // pero para mantener esto sin assets externos, usaremos el release de la nota.
+
+            this.masterGain.connect(compressor);
             compressor.connect(this.ctx.destination);
         }
         if (this.ctx.state === 'suspended') {
@@ -821,55 +792,89 @@ class Synth {
     playTone(freq, startTime, duration) {
         if (!this.ctx) this.init();
 
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
+        // 1. Nodos básicos
+        const oscBody = this.ctx.createOscillator(); // Cuerpo (Sine)
+        const oscString = this.ctx.createOscillator(); // Cuerda (Triangle)
+        const filter = this.ctx.createBiquadFilter();
+        const mainGain = this.ctx.createGain();
+        const panner = this.ctx.createStereoPanner();
 
-        // Usar nuestra onda personalizada en lugar de 'triangle'
-        osc.setPeriodicWave(this.customWave);
-        osc.frequency.value = freq;
+        // 2. Configuración de Osciladores
+        // Capa Cuerpo: Senoidal pura para evitar asperezas en acordes
+        oscBody.type = 'sine';
+        oscBody.frequency.value = freq;
 
-        // ENVOLVENTE MEJORADA (Más natural, tipo campana/piano)
-        // Evitamos clicks y damos sensación percusiva suave
+        // Capa Cuerda: Triangular para dar definición
+        oscString.type = 'triangle';
+        oscString.frequency.value = freq;
 
-        // 1. Reset
-        gain.gain.setValueAtTime(0, startTime);
+        // 3. Filtro (Solo afecta a la capa 'Cuerda' para quitarle el brillo digital)
+        filter.type = 'lowpass';
+        filter.Q.value = 0; // Sin resonancia, muy suave
+        // El filtro se abre un poco al ataque y se cierra suavemente
+        const brightness = Math.min(freq * 4, 3000); // Key tracking suave
+        filter.frequency.setValueAtTime(brightness, startTime);
+        filter.frequency.exponentialRampToValueAtTime(freq, startTime + 2.0); // Cae hacia la fundamental
 
-        // 2. Ataque muy rápido pero no instantáneo (evita "pop")
-        const attackTime = 0.02;
-        gain.gain.linearRampToValueAtTime(0.6, startTime + attackTime);
+        // 4. Panning (Estéreo basado en la altura de la nota)
+        // Notas graves a la Izq (-0.8), Agudas a la Der (+0.8)
+        // Logaritmo para mapear mejor el rango audible musical
+        const minNote = 65;  // C2 approx
+        const maxNote = 1000; // C6 approx
+        let pan = (Math.log2(freq) - Math.log2(minNote)) / (Math.log2(maxNote) - Math.log2(minNote));
+        // Normalizar a -1 a 1 y clamp
+        pan = (pan * 2) - 1;
+        pan = Math.max(-0.9, Math.min(0.9, pan));
+        panner.pan.value = pan;
 
-        // 3. Decaimiento natural hacia un sustain
-        const decayTime = 0.3;
-        const sustainLevel = 0.3;
-        gain.gain.exponentialRampToValueAtTime(sustainLevel, startTime + attackTime + decayTime);
+        // 5. Envolvente de Volumen (Tipo Arpa: Ataque suave, Release muy largo)
+        mainGain.gain.setValueAtTime(0, startTime);
 
-        // 4. Release final (Fade out)
-        // Comenzamos el release un poco antes de que acabe la nota lógica
-        const releaseStart = startTime + duration - 0.15;
-        // Nos aseguramos de que el release no empiece antes del decay
-        const safeRelease = Math.max(releaseStart, startTime + attackTime + decayTime);
+        // Ataque: No instantáneo (evita click), pero rápido (pellizco suave)
+        mainGain.gain.linearRampToValueAtTime(0.5, startTime + 0.04);
 
-        gain.gain.setValueAtTime(sustainLevel, safeRelease);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        // Decay/Sustain: Decae lentamente
+        // Truco: Usamos un decaimiento largo independiente de la "duración" lógica del arpegio
+        // para que las notas se mezclen entre sí (efecto pedal de piano).
+        const ringTime = 4.0; // Las notas suenan por 4 segundos
+        mainGain.gain.exponentialRampToValueAtTime(0.001, startTime + ringTime);
 
-        osc.connect(gain);
-        gain.connect(this.masterGain);
+        // CONEXIONES
+        // Oscilador Cuerpo -> Panner (Directo, sin filtro para mantener graves limpios)
+        oscBody.connect(mainGain);
 
-        osc.start(startTime);
-        osc.stop(startTime + duration + 0.1); // Un poco de margen para el release
+        // Oscilador Cuerda -> Filtro -> Panner (Filtrado para suavidad)
+        oscString.connect(filter);
+        filter.connect(mainGain);
+
+        // Salida común
+        mainGain.connect(panner);
+        panner.connect(this.masterGain);
+
+        // START / STOP
+        oscBody.start(startTime);
+        oscString.start(startTime);
+
+        // Paramos los osciladores cuando el volumen sea inaudible
+        const stopTime = startTime + ringTime + 0.5;
+        oscBody.stop(stopTime);
+        oscString.stop(stopTime);
+
+        // Garbage collection manual
+        setTimeout(() => {
+            mainGain.disconnect();
+            panner.disconnect();
+        }, (ringTime + 1) * 1000);
     }
 
     playChord(cells) {
         this.init();
         const now = this.ctx.currentTime;
-        // Ajuste de volumen para acordes densos
-        const volAdjustment = 1 / Math.sqrt(cells.length || 1);
-        // Aplicamos el ajuste al Master temporalmente o lo gestionamos en el gain de nota
-        // Aquí lo gestionamos implícitamente gracias al Compresor,
-        // pero podemos reducir la duración para que no saturen.
-
-        cells.forEach(cell => {
-            this.playTone(cell.freq, now, 1.0); // Notas más largas en acordes para apreciar el batido
+        // Strumming (rasgueo) sutil para humanizar
+        cells.forEach((cell, i) => {
+            // Rasgueo más lento que antes para dar sensación de grandeza
+            const strumDelay = i * 0.03;
+            this.playTone(cell.freq, now + strumDelay, 0); // Duración ignorada
         });
     }
 
@@ -880,8 +885,7 @@ class Synth {
 
         sortedCells.forEach((cell, index) => {
             const time = now + (index * 0.25);
-            // Notas de arpegio un poco más cortas y percusivas
-            this.playTone(cell.freq, time, 0.5);
+            this.playTone(cell.freq, time, 0); // Duración ignorada
         });
     }
 }
@@ -909,10 +913,10 @@ uiSelect.value = "12";         // Forzar a 12 TET
 uiSensSlider.value = "80";     // Valor por defecto en Renderer
 uiCompSlider.value = "10";    // Valor por defecto en Renderer
 
-const hexSize = 25;
-const mapRadius = 16;
+const hexSize = 30;
+const mapRadius = 10;
 //const origin = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-const origin = { x: window.innerWidth / 2, y: window.innerHeight / 2 - 60 }; // Subimos un poco el centro del hex
+const origin = { x: 0, y: window.innerHeight / 2 - 0 }; // Subimos un poco el centro del hex
 
 
 // 1. Setup
