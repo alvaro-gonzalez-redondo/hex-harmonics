@@ -2,41 +2,21 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa Hexagonal - Heatmap Armónico</title>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif; color: #eee; }
-        canvas { display: block; }
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mapa Armónico Hexagonal | Visualizador Microtonal</title>
+    <meta name="description" content="Explorador interactivo de armonía musical en retícula hexagonal. Soporte para afinaciones microtonales (12, 19, 31, 53, 72 EDO) y síntesis de audio.">
 
-        /* Controles UI */
-        #ui {
-            position: absolute; top: 10px; left: 10px;
-            background: rgba(20, 20, 20, 0.95);
-            padding: 15px; border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.6);
-            border: 1px solid #444;
-            width: 220px;
-            z-index: 10;
-        }
-        select, input { width: 100%; padding: 5px; margin-top: 5px; background: #333; color: white; border: 1px solid #555; }
-        label { font-size: 0.85em; color: #aaa; margin-top: 10px; display: block; }
-        .info { margin-top: 15px; font-size: 0.8em; color: #888; border-top: 1px solid #444; padding-top: 10px; }
+    <!-- Open Graph / Facebook / Discord -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Mapa Armónico Hexagonal">
+    <meta property="og:description" content="Explora la consanguinidad armónica y la microtonalidad visualmente.">
+    <!-- Si tienes una captura de pantalla, ponla en el repo y enlázala aquí -->
+    <!-- <meta property="og:image" content="https://tu-usuario.github.io/tu-repo/screenshot.jpg"> -->
 
-        /* Leyenda */
-        #legend {
-            position: absolute; bottom: 150px; left: 10px;
-            background: rgba(20, 20, 20, 0.9);
-            padding: 10px; border-radius: 8px;
-            border: 1px solid #444;
-            font-size: 0.8em;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        .legend-item { display: flex; align-items: center; gap: 8px; }
-        .color-box { width: 12px; height: 12px; border-radius: 2px; border: 1px solid #555; }
-    </style>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Favicon simple (un hexágono emoji) para evitar errores 404 en consola -->
+    <link rel="icon" type="image/x-icon" href="favicon.png">
 </head>
 <body>
     <div id="ui">
@@ -53,7 +33,7 @@
         <input type="range" id="sensSlider" min="5" max="80" value="80">
 
         <label>Filtro Racional (Simplicidad)</label>
-        <div style="display: flex; justify-content: space-between; font-size: 0.7em; color: #888; margin-bottom: 2px;">
+        <div class="slider-labels">
             <span>Exacto</span>
             <span>Simple</span>
         </div>
@@ -65,22 +45,21 @@
     <!-- Leyenda generada dinámicamente -->
     <div id="legend"></div>
 
-    <!-- NUEVO CONTENEDOR PARA LA BARRA LINEAL -->
-    <div id="linearContainer" style="position: absolute; bottom: 0; left: 0; width: 100%; height: 120px; background: rgba(15,15,15,0.95); border-top: 1px solid #444; pointer-events: none;">
+    <!-- Visualizador Lineal -->
+    <div id="linearContainer">
         <canvas id="linearCanvas"></canvas>
     </div>
 
-    <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">
-        <button id="btnChord" style="width: 48%; background: #2980b9; color: white; border: none; padding: 6px; cursor: pointer;">Acorde</button>
-        <button id="btnArp" style="width: 48%; background: #27ae60; color: white; border: none; padding: 6px; cursor: pointer;">Arpegio</button>
-    </div>
-    <div style="font-size: 0.7em; color: #666; margin-top: 5px; text-align: center;">
-        Espacio: Acorde | Shift+Espacio: Arpegio
+    <!-- Controles de Audio -->
+    <div id="audioControls">
+        <button id="btnChord" class="btn btn-chord">Acorde (Espacio)</button>
+        <button id="btnArp" class="btn btn-arp">Arpegio (Shift+Esp)</button>
     </div>
 
-    <!-- Ajustamos el canvas principal para que no quede tapado -->
-    <canvas id="hexCanvas" style="display:block; margin-bottom: 120px;"></canvas>
+    <!-- Canvas Principal -->
+    <canvas id="hexCanvas"></canvas>
 
-    <script src="hexmap.js"></script>
+    <!-- Punto de entrada JS -->
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>
