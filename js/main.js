@@ -1,6 +1,8 @@
 import { TuningSystem, Hex, Layout, Grid } from './models.js';
 import { Renderer, LinearVisualizer } from './views.js';
 import { Synth } from './audio.js';
+import { MidiController } from './midi.js';
+
 
 // --- CONFIGURACIÓN INICIAL ---
 const HEX_SIZE = 30;
@@ -20,6 +22,10 @@ const linearViz = new LinearVisualizer('linearCanvas', grid);
 
 // Inicialización de Audio
 const synth = new Synth();
+
+// Inicialización MIDI
+const midi = new MidiController(grid, synth);
+midi.init(); // Pide permisos al navegador
 
 // --- BINDINGS (Observadores y Eventos) ---
 

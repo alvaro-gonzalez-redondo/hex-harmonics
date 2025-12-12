@@ -67,6 +67,7 @@ export class Layout {
 export class Grid {
     constructor(tuningSystem) {
         this.map = new Map();
+        this.stepToHexMap = new Map();
         this.tuning = tuningSystem;
         this.listeners = [];
     }
@@ -92,10 +93,18 @@ export class Grid {
             harmonicLabel: ""
         });
 
+        // Guardar en el mapa inverso: Key=PitchSteps, Value=CellData
+        this.stepToHexMap.set(pitchSteps, data);
+
         if(isNew) this.map.set(hex.toString(), data);
     }
 
     getHex(hex) { return this.map.get(hex.toString()); }
+
+    // Método rápido para MIDI
+    getCellBySteps(steps) {
+        return this.stepToHexMap.get(steps);
+    }
 
     toggleHex(hex) {
         const cell = this.getHex(hex);
