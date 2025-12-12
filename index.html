@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Hexagonal - Heatmap Armónico</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif; color: #eee; }
+        canvas { display: block; }
+
+        /* Controles UI */
+        #ui {
+            position: absolute; top: 10px; left: 10px;
+            background: rgba(20, 20, 20, 0.95);
+            padding: 15px; border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+            border: 1px solid #444;
+            width: 220px;
+            z-index: 10;
+        }
+        select, input { width: 100%; padding: 5px; margin-top: 5px; background: #333; color: white; border: 1px solid #555; }
+        label { font-size: 0.85em; color: #aaa; margin-top: 10px; display: block; }
+        .info { margin-top: 15px; font-size: 0.8em; color: #888; border-top: 1px solid #444; padding-top: 10px; }
+
+        /* NUEVA LEYENDA */
+        #legend {
+            position: absolute; bottom: 150px; left: 10px;
+            background: rgba(20, 20, 20, 0.9);
+            padding: 10px; border-radius: 8px;
+            border: 1px solid #444;
+            font-size: 0.8em;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .color-box { width: 12px; height: 12px; border-radius: 2px; border: 1px solid #555; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div><strong>Sistema (EDO)</strong></div>
+        <select id="edoSelect">
+            <option value="12">12 TET</option>
+            <option value="19">19 TET</option>
+            <option value="31">31 TET</option>
+            <option value="53">53 TET</option>
+            <option value="72">72 TET</option>
+        </select>
+
+        <label>Sensibilidad de Luz</label>
+        <input type="range" id="sensSlider" min="5" max="80" value="35">
+
+        <label>Filtro Racional (Simplicidad)</label>
+        <div style="display: flex; justify-content: space-between; font-size: 0.7em; color: #888; margin-bottom: 2px;">
+            <span>Exacto</span>
+            <span>Simple</span>
+        </div>
+        <input type="range" id="complexitySlider" min="0.5" max="10.0" step="0.1" value="8.0">
+
+        <div class="info" id="cellInfo">Click para activar notas.</div>
+    </div>
+
+    <!-- Leyenda generada dinámicamente -->
+    <div id="legend"></div>
+
+    <!-- NUEVO CONTENEDOR PARA LA BARRA LINEAL -->
+    <div id="linearContainer" style="position: absolute; bottom: 0; left: 0; width: 100%; height: 120px; background: rgba(15,15,15,0.95); border-top: 1px solid #444; pointer-events: none;">
+        <canvas id="linearCanvas"></canvas>
+    </div>
+
+    <!-- Ajustamos el canvas principal para que no quede tapado -->
+    <canvas id="hexCanvas" style="display:block; margin-bottom: 120px;"></canvas>
+
+    <script src="hexmap.js"></script>
+</body>
+</html>
