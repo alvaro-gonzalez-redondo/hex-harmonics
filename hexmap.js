@@ -23,67 +23,7 @@ const w_tuning = 0.15;
 class HarmonicMath {
     static BASE_FREQ = 261.63; // C4 para cálculos de referencia
 
-/*
-    // Colores originales de Gemini
-    static LIMIT_COLORS = {
-        1:  { r: 255, g: 255, b: 255 },
-        3:  { r: 234, g: 158, b: 92  },
-        5:  { r: 167, g: 188, b: 95  },
-        7:  { r: 62,  g: 202, b: 180 },
-        11: { r: 97,  g: 187, b: 247 },
-        13: { r: 189, g: 159, b: 243 }
-    };
-*/
-/*
-    // RGBs puros
-    static LIMIT_COLORS = {
-        1:  { r: 255, g: 255, b: 255 },
-        3:  { r: 255, g: 0, b: 0},
-        5:  { r: 0, g: 255, b: 0},
-        7:  { r: 0,  g: 0, b: 255},
-        11: { r: 255,  g: 255, b: 0 },
-        13: { r: 255, g: 0, b: 255 },
-        17: { r: 128, g: 128, b: 128 }
-    };
-*/
-/*
-    // Harmonic Hue Gradient
-    static LIMIT_COLORS = {
-        1:  { r:255, g:255, b:255 },   // Pureza (unísono/octava)
-        3:  { r:255, g:170, b:90  },   // Quinta → naranja ambar
-        5:  { r:240, g:210, b:70  },   // Tercera → dorado
-        7:  { r:140, g:200, b:120 },   // Séptima nat. → verde suave
-        11: { r:100, g:180, b:240 },   // Undécima → azul claro
-        13: { r:175, g:140, b:230 },   // Decimotercera → lavanda
-        17: { r:150, g:150, b:160 }    // >13 → gris violáceo
-    };
-*/
-
-/*
-    // OKLab / HSLuv mapped to RGB
-    static LIMIT_COLORS = {
-        1:  { r:255, g:255, b:255 },   // blanco
-        3:  { r:230, g:150, b:120 },   // coral
-        5:  { r:230, g:200, b:120 },   // arena
-        7:  { r:160, g:210, b:140 },   // verde natural
-        11: { r:120, g:190, b:220 },   // azul suave
-        13: { r:170, g:150, b:220 },   // violeta humo
-        17: { r:140, g:140, b:140 }    // gris
-    };
-*/
-/*
-    // Onda armónica
-    static LIMIT_COLORS = {
-        1:  { r:255, g:255, b:255 },    // blanco
-        3:  { r:255, g:120, b:90  },    // rojo coral
-        5:  { r:255, g:200, b:90  },    // amarillo cálido
-        7:  { r:120, g:220, b:120 },    // verde brillante
-        11:{ r: 90, g:150, b:255 },    // azul intenso
-        13:{ r:180, g:100, b:255 },    // púrpura
-        17:{ r:120, g:120, b:120 }     // gris
-    };
-*/
-    // Onda armónica (semáforo)
+    // Onda armónica (tipo semáforo)
     static LIMIT_COLORS = {
         1:  { r:255, g:255, b:255 },    // blanco
         3:  { r:120, g:220, b:120 },    // verde brillante
@@ -93,7 +33,6 @@ class HarmonicMath {
         13: { r: 90, g:150, b:255 },    // azul intenso
         17:{ r:120, g:120, b:120 }     // gris
     };
-
 
     // Fracciones Continuas
     static getBestRational(floatVal, complexityWeight = 2.8, maxDenominator = 2000) {
@@ -200,6 +139,53 @@ class HarmonicMath {
             }
         }
         return R**2;
+    }
+
+    // Helper: Máximo Común Divisor
+    static gcd(a, b) {
+        return !b ? a : this.gcd(b, a % b);
+    }
+
+    /**
+     * Genera intervalos JI relevantes dinámicamente.
+     * @param {number} maxLimit - Límite primo máximo (ej: 11 o 13)
+     * @param {number} maxDenom - Denominador máximo para iterar (controla densidad)
+     */
+    static generateReferenceIntervals(maxLimit = 13, maxDenom = 24) {
+        const intervals = [];
+
+        // Iteramos denominadores y numeradores para cubrir ratio [1.0, 2.0]
+        for (let d = 1; d <= maxDenom; d++) {
+            for (let n = d; n < d * 2; n++) {
+                // 1. Filtrar Reducibles: Solo fracciones irreducibles (ej: saltar 2/2, 4/4)
+                if (this.gcd(n, d) !== 1) continue;
+
+                // 2. Filtrar por Límite Primo
+                const lN = this.getPrimeLimit(n);
+                const lD = this.getPrimeLimit(d);
+                const limit = Math.max(lN, lD);
+
+                if (limit > maxLimit) continue;
+
+                // 3. Añadir a la lista
+                intervals.push({
+                    n: n,
+                    d: d,
+                    ratioStr: `${n}/${d}`,
+                    cents: 1200 * Math.log2(n / d),
+                               limit: limit,
+                               color: this.LIMIT_COLORS[limit] || {r:100,g:100,b:100}
+                });
+            }
+        }
+
+        // Añadir la Octava (2/1) manualmente ya que el loop es n < d*2
+        intervals.push({
+            n: 2, d: 1, ratioStr: "2/1", cents: 1200, limit: 1, color: this.LIMIT_COLORS[1]
+        });
+
+        // Ordenar por cents
+        return intervals.sort((a, b) => a.cents - b.cents);
     }
 
 }
@@ -327,29 +313,52 @@ class Grid {
     constructor(tuningSystem) {
         this.map = new Map();
         this.tuning = tuningSystem;
+        this.listeners = []; // Lista de suscriptores
     }
+
+    // --- Patrón Observador ---
+    subscribe(callback) {
+        this.listeners.push(callback);
+    }
+
+    notify() {
+        this.listeners.forEach(callback => callback(this));
+    }
+    // -------------------------
+
     addHex(hex) { this.updateHexData(hex, true); }
+
     updateHexData(hex, isNew = false) {
         const noteIndex = this.tuning.getNoteIndex(hex.q, hex.r);
-        // Guardamos el valor lineal absoluto de pasos para buscar en la LUT rápidamente
         const pitchSteps = this.tuning.getPitchSteps(hex.q, hex.r);
-
         const data = isNew ? { hex, active: false } : this.map.get(hex.toString());
         data.noteIndex = noteIndex;
-        data.pitchSteps = pitchSteps; // Dato clave para la LUT
+        data.pitchSteps = pitchSteps;
         data.cachedColor = null;
         data.harmonicLabel = "";
         if(isNew) this.map.set(hex.toString(), data);
     }
+
     getHex(hex) { return this.map.get(hex.toString()); }
+
     toggleHex(hex) {
         const cell = this.getHex(hex);
-        if (cell) { cell.active = !cell.active; return true; }
+        if (cell) {
+            cell.active = !cell.active;
+            this.notify(); // <--- Notificar cambio de estado
+            return true;
+        }
         return false;
     }
+
     getAll() { return Array.from(this.map.values()); }
     getActiveCells() { return this.getAll().filter(c => c.active); }
-    refreshData() { for (let [key, cell] of this.map) { this.updateHexData(cell.hex); } }
+
+    refreshData() {
+        for (let [key, cell] of this.map) { this.updateHexData(cell.hex); }
+        // No notificamos aquí porque refreshData suele ir seguido de un cambio en el renderer manual
+    }
+
     generateMap(radius) {
         this.map.clear();
         for (let q = -radius; q <= radius; q++) {
@@ -357,6 +366,7 @@ class Grid {
             let r2 = Math.min(radius, -q + radius);
             for (let r = r1; r <= r2; r++) { this.addHex(new Hex(q, r, -q - r)); }
         }
+        this.notify(); // Notificar mapa nuevo
     }
 }
 
@@ -367,8 +377,8 @@ class Renderer {
         this.layout = layout;
         this.grid = grid;
         this.hoveredHex = null;
-        this.sensitivity = 5;
-        this.complexityWeight = 8.0; // Valor inicial
+        this.sensitivity = 80;
+        this.complexityWeight = 10.0; // Valor inicial
 
         this.lut = new HarmonicLUT();
         // Inicializar LUT con peso
@@ -591,64 +601,34 @@ class Renderer {
     }
 }
 
-/**
- * DATOS DE REFERENCIA PARA LA BARRA LINEAL
- * Selección de intervalos comunes para pintar el "fondo" del gráfico.
- */
-const REFERENCE_JI = [
-    { n:1, d:1 }, // Unison
-{ n:16, d:15 }, { n:15, d:14 }, // Semitonos
-{ n:9, d:8 }, { n:10, d:9 }, { n:8, d:7 }, // Segundas
-{ n:6, d:5 }, { n:7, d:6 }, // 3ras menores
-{ n:5, d:4 }, { n:9, d:7 }, // 3ras mayores
-{ n:4, d:3 }, { n:11, d:8 }, // 4tas
-{ n:7, d:5 }, { n:10, d:7 }, { n:45, d:32 }, // Tritonos
-{ n:3, d:2 }, // 5ta
-{ n:8, d:5 }, { n:14, d:9 }, // 6tas menores
-{ n:5, d:3 }, { n:12, d:7 }, // 6tas mayores
-{ n:7, d:4 }, { n:16, d:9 }, { n:9, d:5 }, // 7mas menores
-{ n:15, d:8 }, // 7ma mayor
-{ n:2, d:1 } // Octava
-];
 
-// Pre-calcular cents y límites para la referencia estática
-const JI_MARKERS = REFERENCE_JI.map(r => {
-    const limitN = HarmonicMath.getPrimeLimit(r.n);
-    const limitD = HarmonicMath.getPrimeLimit(r.d);
-    return {
-        ratioStr: `${r.n}/${r.d}`,
-        cents: 1200 * Math.log2(r.n / r.d),
-                                    limit: Math.max(limitN, limitD),
-                                    color: HarmonicMath.LIMIT_COLORS[Math.max(limitN, limitD)] || {r:100,g:100,b:100}
-    };
-});
-
-/**
- * VISUALIZADOR LINEAL (La barra inferior)
- */
 class LinearVisualizer {
     constructor(canvasId, grid) {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
         this.grid = grid;
 
-        // Configuración visual
-        this.margin = 30; // Margen lateral
-        this.height = 120;
+        this.margin = 30;
+
+        // Generación Algorítmica de Fondo (Una sola vez)
+        // maxDenom=32 genera suficientes intervalos para referencia sin saturar
+        this.backgroundIntervals = HarmonicMath.generateReferenceIntervals(13, 32);
 
         this.resize();
         window.addEventListener('resize', () => this.resize());
+
+        // --- SUSCRIPCIÓN ELEGANTE ---
+        // Cuando el grid notifique cambio, nos redibujamos
+        this.grid.subscribe(() => this.draw());
     }
 
     resize() {
-        // Ajustar al contenedor padre
         const rect = this.canvas.parentElement.getBoundingClientRect();
         this.canvas.width = rect.width;
         this.canvas.height = rect.height;
         this.draw();
     }
 
-    // Convierte Cents (0-1200) a posición X en pixels
     centsToX(cents) {
         const usableWidth = this.canvas.width - (this.margin * 2);
         return this.margin + (cents / 1200) * usableWidth;
@@ -661,33 +641,34 @@ class LinearVisualizer {
 
         ctx.clearRect(0, 0, w, h);
 
-        // 1. DIBUJAR FONDO (Regla JI)
-        // Dibujamos líneas para cada intervalo Justo conocido
-        JI_MARKERS.forEach(marker => {
+        // 1. DIBUJAR FONDO (Intervalos generados)
+        this.backgroundIntervals.forEach(marker => {
             const x = this.centsToX(marker.cents);
 
-            // Altura de la línea según importancia (Límite bajo = línea más alta)
-            // Lim 3: 100% altura, Lim 5: 70%, Lim 7: 50%...
-            let lineH = h * 0.4;
-            if (marker.limit === 3) lineH = h * 0.8;
-            else if (marker.limit === 5) lineH = h * 0.6;
-            else if (marker.limit === 7) lineH = h * 0.5;
+            // Altura dinámica basada en complejidad (simplicidad)
+            // Fracciones más simples (d y n bajos) tienen líneas más altas
+            const complexity = marker.n * marker.d;
+            let lineScale = 1 - (Math.min(complexity, 300) / 300); // 0.0 a 1.0 aprox
+            // Boost para límites bajos
+            if (marker.limit <= 3) lineScale = 1.0;
 
-            // Color con transparencia baja para que sea fondo
+            const lineH = h * (0.3 + 0.5 * lineScale); // Mínimo 30%, Máximo 80%
+
             const c = marker.color;
             ctx.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, 0.3)`;
             ctx.fillRect(x - 1, h - lineH, 2, lineH);
 
-            // Etiqueta solo para límites bajos para no saturar
-            if (marker.limit <= 11) {
-                ctx.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, 0.6)`;
+            // Etiquetas solo para los muy importantes
+            //if (complexity < 20 || marker.limit <= 5) {
+            if (complexity < 100 || marker.limit <= 5) {
+                ctx.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, 0.7)`;
                 ctx.font = "10px monospace";
                 ctx.textAlign = "center";
                 ctx.fillText(marker.ratioStr, x, h - lineH - 5);
             }
         });
 
-        // Eje horizontal
+        // Eje
         ctx.strokeStyle = "#555";
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -695,116 +676,123 @@ class LinearVisualizer {
         ctx.lineTo(w - this.margin, h - 20);
         ctx.stroke();
 
-        // 2. DIBUJAR EDO ACTUAL (Marcas grises)
+        // 2. DIBUJAR EDO ACTUAL
         const edo = this.grid.tuning.edo;
         ctx.fillStyle = "#444";
         for (let i = 0; i <= edo; i++) {
             const cents = (i / edo) * 1200;
             const x = this.centsToX(cents);
-            ctx.fillRect(x - 1, h - 25, 2, 10); // Pequeños ticks abajo
+            ctx.fillRect(x - 0.5, h - 25, 1, 8);
         }
 
-        // 3. DIBUJAR INTERVALOS ACTIVOS
-        // Recuperamos qué está sonando en el hexágono
+        // 3. INTERVALOS ACTIVOS
         const activeCells = this.grid.getActiveCells();
         if (activeCells.length === 0) return;
 
-        // Tomamos la primera nota activa como "Fundamental" (0 cents) para simplificar visualización
-        // O si preferimos, mostramos todos relativos entre sí.
-        // ESTRATEGIA: Para cada par activo, pintamos el intervalo.
-
-        // Vamos a visualizar los intervalos relativos a la primera nota activa encontrada
-        // (asumiendo que esa actúa de tónica temporal)
         const root = activeCells[0];
         const rootSteps = root.pitchSteps;
 
         activeCells.forEach(cell => {
-            // Calcular intervalo relativo en cents
-            // Usamos modulo para mantenerlo en una octava
             let diffSteps = Math.abs(cell.pitchSteps - rootSteps);
-            // Normalizar a una octava (simple)
             diffSteps = diffSteps % edo;
 
             const centsEDO = (diffSteps / edo) * 1200;
             const xEDO = this.centsToX(centsEDO);
 
-            // Buscar si tenemos datos de análisis (el algoritmo racional que ya corre en el renderer principal)
-            // Como LinearVisualizer no tiene acceso directo al Renderer, podemos recalcular
-            // o acceder a la propiedad 'harmonicLabel' o 'cachedColor' si guardamos más datos.
-            // Para ser robustos, usamos la LUT de HarmonicMath aquí brevemente.
-
-            // A. Dibujar el marcador del EDO (Círculo)
+            // Marcador EDO
             ctx.fillStyle = "#fff";
             ctx.beginPath();
             ctx.arc(xEDO, h - 20, 4, 0, Math.PI*2);
             ctx.fill();
 
-            // B. Dibujar Conexión con JI (Visualización del Error)
-            // Calculamos el mejor racional al vuelo para dibujar la línea
+            // Análisis al vuelo para la línea de conexión
             const ratioVal = Math.pow(2, centsEDO / 1200);
-            // Usamos un peso alto aquí para mostrar el "ideal" al que aspira la nota
             const rational = HarmonicMath.getBestRational(ratioVal == 1 ? 1 : ratioVal, 2.5);
 
             if (rational.match) {
                 const jiCents = 1200 * Math.log2(rational.n / rational.d);
                 const xJI = this.centsToX(jiCents);
 
-                // Color según límite
                 const limitN = HarmonicMath.getPrimeLimit(rational.n);
                 const limitD = HarmonicMath.getPrimeLimit(rational.d);
                 const limit = Math.max(limitN, limitD);
                 const c = HarmonicMath.LIMIT_COLORS[limit] || {r:200,g:200,b:200};
 
-                // Línea conectora (Error)
                 ctx.strokeStyle = `rgb(${c.r}, ${c.g}, ${c.b})`;
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(xEDO, h - 20); // Desde el punto EDO
-                ctx.lineTo(xJI, h - 60);  // Hacia la referencia JI (más arriba)
-        ctx.stroke();
+                ctx.moveTo(xEDO, h - 20);
+                ctx.lineTo(xJI, h - 60);
+                ctx.stroke();
 
-        // Etiqueta del intervalo detectado
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 12px Arial";
-        ctx.fillText(`${rational.n}/${rational.d}`, xJI, h - 65);
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 12px Arial";
+                ctx.fillText(`${rational.n}/${rational.d}`, xJI, h - 65);
 
-        // Texto del error
-        const error = (centsEDO - jiCents).toFixed(1);
-        ctx.fillStyle = Math.abs(error) > 15 ? "#e74c3c" : "#888";
-        ctx.font = "10px monospace";
-        ctx.fillText(`${error > 0 ? '+' : ''}${error}¢`, xEDO, h - 35);
+                const error = (centsEDO - jiCents).toFixed(1);
+                ctx.fillStyle = Math.abs(error) > 15 ? "#e74c3c" : "#aaa";
+                ctx.font = "10px monospace";
+                ctx.fillText(`${error > 0 ? '+' : ''}${error}¢`, xEDO, h - 35);
             }
         });
     }
 }
 
 // INICIALIZACIÓN
+
+// 1. FORZAR ESTADO INICIAL DE LA UI (Para evitar caché del navegador al recargar)
+const uiSelect = document.getElementById('edoSelect');
+const uiSensSlider = document.getElementById('sensSlider');
+const uiCompSlider = document.getElementById('complexitySlider');
+
+uiSelect.value = "12";         // Forzar a 12 TET
+uiSensSlider.value = "80";     // Valor por defecto en Renderer
+uiCompSlider.value = "10";    // Valor por defecto en Renderer
+
 const hexSize = 25;
 const mapRadius = 16;
 //const origin = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 const origin = { x: window.innerWidth / 2, y: window.innerHeight / 2 - 60 }; // Subimos un poco el centro del hex
+
+
+// 1. Setup
 const tuning = new TuningSystem(12);
 const layout = new Layout(hexSize, origin);
-const grid = new Grid(tuning);
+const grid = new Grid(tuning); // Grid es el State Manager
 grid.generateMap(mapRadius);
+
+// 2. Componentes (Se suscriben internamente al Grid)
 const renderer = new Renderer('hexCanvas', layout, grid);
 const linearViz = new LinearVisualizer('linearCanvas', grid);
 
-const originalDraw = renderer.draw.bind(renderer);
-renderer.draw = function() {
-    originalDraw(); // Dibuja hexágonos
-    linearViz.draw(); // Dibuja barra lineal
-};
-
-// EVENTOS
-document.getElementById('edoSelect').addEventListener('change', (e) => {
-    const newEdo = e.target.value;
-    tuning.setEdo(newEdo);
-    renderer.lut.recalculate(newEdo, renderer.complexityWeight);
-    grid.refreshData();
+// Suscripción explícita del Renderer (si no lo hiciste dentro de su clase)
+// OJO: En mi código anterior Renderer no tenía subscribe en su constructor.
+// Lo más limpio es añadirlo aquí:
+grid.subscribe(() => {
     renderer.recalculateHeatmap();
     renderer.draw();
 });
+
+// 3. Eventos UI (Solo actualizan el Modelo, la Vista reacciona sola)
+document.getElementById('edoSelect').addEventListener('change', (e) => {
+    const newEdo = e.target.value;
+    tuning.setEdo(newEdo);
+
+    // Recalcular LUT (Propiedad del Renderer para optimización)
+    renderer.lut.recalculate(newEdo, renderer.complexityWeight);
+
+    grid.refreshData(); // Esto no disparaba notify en mi código anterior, añadelo o llama notify manual
+    // grid.notify(); // Si refreshData no notifica
+
+    // Como refreshData cambia datos internos pero no estructura,
+    // a veces es mejor forzar el redibujado completo.
+    renderer.recalculateHeatmap();
+    renderer.draw();
+    linearViz.draw();
+});
+
+// El resto de sliders (sensibilidad, complejidad) son cambios de 'View', no de 'Model'
+// así que siguen llamando a métodos del renderer.
 
 document.getElementById('sensSlider').addEventListener('input', (e) => {
     renderer.setSensitivity(e.target.value);
