@@ -754,30 +754,63 @@ class LinearVisualizer {
 
 
 /**
- * MOTOR DE AUDIO (Web Audio API)
+ * MOTOR DE AUDIO MEJORADO (Síntesis Aditiva)
  */
 class Synth {
     constructor() {
         this.ctx = null;
         this.masterGain = null;
+        this.customWave = null;
     }
 
     init() {
         if (!this.ctx) {
-            // Inicializamos el contexto solo tras una interacción del usuario (requisito del navegador)
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.value = 0.3; // Volumen general conservador
 
-            // Compresor para evitar saturación si tocamos muchas notas
+            // 1. Crear Forma de Onda Personalizada (Síntesis Aditiva)
+            // Esto nos da un sonido "orgánico" con armónicos precisos para la roughness
+            const numHarmonics = 32;
+            const real = new Float32Array(numHarmonics);
+            const imag = new Float32Array(numHarmonics);
+
+            // Diseño del Timbre (Tipo Piano Eléctrico / Órgano Suave)
+            // real[n] son los cosenos (fase), imag[n] son los senos (amplitud)
+            // n=1 es la fundamental, n=2 la octava, etc.
+
+            imag[0] = 0; // DC Offset (siempre 0)
+            imag[1] = 1.0;  // Fundamental (Cuerpo)
+            imag[2] = 0.5;  // 2º Armónico (Octava - Calidez)
+            imag[3] = 0.3;  // 3º Armónico (Quinta - Color)
+            imag[4] = 0.20; // 4º Armónico
+            imag[5] = 0.15; // 5º Armónico (Vital para detectar 3ras mayores)
+
+            // El resto de armónicos decaen suavemente para quitar lo "áspero"
+            for (let i = 6; i < numHarmonics; i++) {
+                imag[i] = 0.4 / Math.pow(i, 1.5); // Caída exponencial suave
+            }
+
+            this.customWave = this.ctx.createPeriodicWave(real, imag);
+
+            // 2. Cadena de Audio
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.value = 0.25; // Un poco más bajo ya que la onda es rica
+
+            // Filtro Paso Bajo (Lowpass) suave para "redondear" el brillo final
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = "lowpass";
+            filter.frequency.value = 3500; // Cortar brillo excesivo
+            filter.Q.value = 0.5;
+
+            // Compresor (Limiter)
             const compressor = this.ctx.createDynamicsCompressor();
-            compressor.threshold.value = -10;
-            compressor.knee.value = 40;
+            compressor.threshold.value = -12;
+            compressor.knee.value = 30;
             compressor.ratio.value = 12;
-            compressor.attack.value = 0;
+            compressor.attack.value = 0.005;
             compressor.release.value = 0.25;
 
-            this.masterGain.connect(compressor);
+            this.masterGain.connect(filter);
+            filter.connect(compressor);
             compressor.connect(this.ctx.destination);
         }
         if (this.ctx.state === 'suspended') {
@@ -791,45 +824,64 @@ class Synth {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
 
-        // Usamos TRIÁNGULO porque tiene armónicos impares suaves,
-        // ideales para escuchar la afinación y el 'beating' sin ser estridente.
-        osc.type = 'triangle';
+        // Usar nuestra onda personalizada en lugar de 'triangle'
+        osc.setPeriodicWave(this.customWave);
         osc.frequency.value = freq;
 
-        // Envolvente para evitar clicks (Fade In / Fade Out)
+        // ENVOLVENTE MEJORADA (Más natural, tipo campana/piano)
+        // Evitamos clicks y damos sensación percusiva suave
+
+        // 1. Reset
         gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.5, startTime + 0.05); // Attack rápido
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration); // Decay largo
+
+        // 2. Ataque muy rápido pero no instantáneo (evita "pop")
+        const attackTime = 0.02;
+        gain.gain.linearRampToValueAtTime(0.6, startTime + attackTime);
+
+        // 3. Decaimiento natural hacia un sustain
+        const decayTime = 0.3;
+        const sustainLevel = 0.3;
+        gain.gain.exponentialRampToValueAtTime(sustainLevel, startTime + attackTime + decayTime);
+
+        // 4. Release final (Fade out)
+        // Comenzamos el release un poco antes de que acabe la nota lógica
+        const releaseStart = startTime + duration - 0.15;
+        // Nos aseguramos de que el release no empiece antes del decay
+        const safeRelease = Math.max(releaseStart, startTime + attackTime + decayTime);
+
+        gain.gain.setValueAtTime(sustainLevel, safeRelease);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
 
         osc.connect(gain);
         gain.connect(this.masterGain);
 
         osc.start(startTime);
-        osc.stop(startTime + duration);
+        osc.stop(startTime + duration + 0.1); // Un poco de margen para el release
     }
 
-    // Tocar todas juntas
     playChord(cells) {
         this.init();
         const now = this.ctx.currentTime;
-        // Ajustar volumen según número de notas para no reventar los oídos
-        const vol = 0.4 / Math.sqrt(cells.length || 1);
+        // Ajuste de volumen para acordes densos
+        const volAdjustment = 1 / Math.sqrt(cells.length || 1);
+        // Aplicamos el ajuste al Master temporalmente o lo gestionamos en el gain de nota
+        // Aquí lo gestionamos implícitamente gracias al Compresor,
+        // pero podemos reducir la duración para que no saturen.
 
         cells.forEach(cell => {
-            this.playTone(cell.freq, now, 1.5); // 1.5 segundos de duración
+            this.playTone(cell.freq, now, 1.0); // Notas más largas en acordes para apreciar el batido
         });
     }
 
-    // Tocar en secuencia (ordenadas por tono)
     playArpeggio(cells) {
         this.init();
         const now = this.ctx.currentTime;
-        // Ordenar notas de grave a agudo para que suene musical
         const sortedCells = [...cells].sort((a, b) => a.freq - b.freq);
 
         sortedCells.forEach((cell, index) => {
-            const time = now + (index * 0.25); // 250ms entre notas
-            this.playTone(cell.freq, time, 0.6);
+            const time = now + (index * 0.25);
+            // Notas de arpegio un poco más cortas y percusivas
+            this.playTone(cell.freq, time, 0.5);
         });
     }
 }
