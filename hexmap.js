@@ -188,6 +188,11 @@ class HarmonicMath {
         return intervals.sort((a, b) => a.cents - b.cents);
     }
 
+    static getFrequency(q, r, edoConfig, edo) {
+        // Fórmula: Frecuencia Base * 2^(pasos / edo)
+        const pitchSteps = (q * edoConfig.qStep) + (r * edoConfig.rStep);
+        return this.BASE_FREQ * Math.pow(2, pitchSteps / edo);
+    }
 }
 
 /**
@@ -330,12 +335,21 @@ class Grid {
 
     updateHexData(hex, isNew = false) {
         const noteIndex = this.tuning.getNoteIndex(hex.q, hex.r);
+
+        // Pasos lineales (para la LUT y visualización)
         const pitchSteps = this.tuning.getPitchSteps(hex.q, hex.r);
+
+        // Frecuencia en Hz (para el SINTETIZADOR) <--- ESTO FALTABA
+        const freq = HarmonicMath.getFrequency(hex.q, hex.r, this.tuning.config, this.tuning.edo);
+
         const data = isNew ? { hex, active: false } : this.map.get(hex.toString());
+
         data.noteIndex = noteIndex;
         data.pitchSteps = pitchSteps;
+        data.freq = freq; // <--- Guardamos la frecuencia
         data.cachedColor = null;
         data.harmonicLabel = "";
+
         if(isNew) this.map.set(hex.toString(), data);
     }
 
@@ -738,6 +752,100 @@ class LinearVisualizer {
     }
 }
 
+
+/**
+ * MOTOR DE AUDIO (Web Audio API)
+ */
+class Synth {
+    constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+    }
+
+    init() {
+        if (!this.ctx) {
+            // Inicializamos el contexto solo tras una interacción del usuario (requisito del navegador)
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.value = 0.3; // Volumen general conservador
+
+            // Compresor para evitar saturación si tocamos muchas notas
+            const compressor = this.ctx.createDynamicsCompressor();
+            compressor.threshold.value = -10;
+            compressor.knee.value = 40;
+            compressor.ratio.value = 12;
+            compressor.attack.value = 0;
+            compressor.release.value = 0.25;
+
+            this.masterGain.connect(compressor);
+            compressor.connect(this.ctx.destination);
+        }
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    }
+
+    playTone(freq, startTime, duration) {
+        if (!this.ctx) this.init();
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        // Usamos TRIÁNGULO porque tiene armónicos impares suaves,
+        // ideales para escuchar la afinación y el 'beating' sin ser estridente.
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+
+        // Envolvente para evitar clicks (Fade In / Fade Out)
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.5, startTime + 0.05); // Attack rápido
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration); // Decay largo
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+    }
+
+    // Tocar todas juntas
+    playChord(cells) {
+        this.init();
+        const now = this.ctx.currentTime;
+        // Ajustar volumen según número de notas para no reventar los oídos
+        const vol = 0.4 / Math.sqrt(cells.length || 1);
+
+        cells.forEach(cell => {
+            this.playTone(cell.freq, now, 1.5); // 1.5 segundos de duración
+        });
+    }
+
+    // Tocar en secuencia (ordenadas por tono)
+    playArpeggio(cells) {
+        this.init();
+        const now = this.ctx.currentTime;
+        // Ordenar notas de grave a agudo para que suene musical
+        const sortedCells = [...cells].sort((a, b) => a.freq - b.freq);
+
+        sortedCells.forEach((cell, index) => {
+            const time = now + (index * 0.25); // 250ms entre notas
+            this.playTone(cell.freq, time, 0.6);
+        });
+    }
+}
+
+// Función helper para obtener notas activas
+function getActiveNotes() {
+    const active = grid.getActiveCells();
+    if (active.length === 0) {
+        // Feedback visual si no hay notas
+        alert("Selecciona algunas notas primero (haz clic en los hexágonos).");
+        return null;
+    }
+    return active;
+}
+
+
 // INICIALIZACIÓN
 
 // 1. FORZAR ESTADO INICIAL DE LA UI (Para evitar caché del navegador al recargar)
@@ -764,10 +872,9 @@ grid.generateMap(mapRadius);
 // 2. Componentes (Se suscriben internamente al Grid)
 const renderer = new Renderer('hexCanvas', layout, grid);
 const linearViz = new LinearVisualizer('linearCanvas', grid);
+const synth = new Synth();
 
 // Suscripción explícita del Renderer (si no lo hiciste dentro de su clase)
-// OJO: En mi código anterior Renderer no tenía subscribe en su constructor.
-// Lo más limpio es añadirlo aquí:
 grid.subscribe(() => {
     renderer.recalculateHeatmap();
     renderer.draw();
@@ -800,4 +907,107 @@ document.getElementById('sensSlider').addEventListener('input', (e) => {
 
 document.getElementById('complexitySlider').addEventListener('input', (e) => {
     renderer.setComplexityWeight(e.target.value);
+});
+
+
+// --- GESTOR DE ESTADO DE AUDIO ---
+
+let arpTimeout = null;      // Referencia al timer para poder cancelarlo
+let isArpActive = false;    // Estado lógico del arpegio
+
+// Función de limpieza robusta
+function stopAudio() {
+    if (arpTimeout) {
+        clearTimeout(arpTimeout);
+        arpTimeout = null;
+    }
+    isArpActive = false;
+}
+
+// Bucle de Arpegio Dinámico
+function runArpeggioLoop() {
+    if (!isArpActive) return;
+
+    // 1. Consultar estado ACTUAL del grid en cada vuelta
+    const notes = grid.getActiveCells();
+
+    // Si el usuario desactivó todas las notas mientras sonaba, paramos
+    if (!notes || notes.length === 0) {
+        stopAudio();
+        return;
+    }
+
+    // 2. Reproducir
+    synth.playArpeggio(notes);
+
+    // 3. Calcular duración basada en las notas ACTUALES
+    // (Si añadiste notas, el ciclo será más largo; si quitaste, más corto)
+    const stepTime = 250;
+    const loopDuration = notes.length * stepTime;
+
+    // 4. Programar siguiente vuelta
+    arpTimeout = setTimeout(runArpeggioLoop, loopDuration);
+}
+
+// --- EVENTOS UI ---
+
+// Botones
+document.getElementById('btnChord').addEventListener('click', () => {
+    const notes = grid.getActiveCells();
+    if (notes.length > 0) synth.playChord(notes);
+});
+
+document.getElementById('btnArp').addEventListener('click', () => {
+    stopAudio(); // Reset por seguridad
+    const notes = grid.getActiveCells();
+    if (notes.length > 0) synth.playArpeggio(notes);
+});
+
+// Selector de EDO (Modificado para limpiar audio)
+document.getElementById('edoSelect').addEventListener('change', (e) => {
+    stopAudio(); // <--- IMPORTANTE: Detiene cualquier sonido al cambiar sistema
+
+    const newEdo = e.target.value;
+    tuning.setEdo(newEdo);
+    renderer.lut.recalculate(newEdo, renderer.complexityWeight);
+    grid.refreshData();
+    renderer.recalculateHeatmap();
+    renderer.draw();
+    linearViz.draw();
+});
+
+// Seguridad: Parar audio si el usuario cambia de pestaña o minimiza
+window.addEventListener('blur', () => {
+    stopAudio();
+});
+
+// --- EVENTOS DE TECLADO ---
+
+window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.repeat) return; // Ignorar repetición de tecla del SO
+
+    if (e.code === 'Space') {
+        e.preventDefault();
+        const notes = grid.getActiveCells();
+        if (!notes || notes.length === 0) return;
+
+        if (e.shiftKey) {
+            // MODO ARPEGIO (LOOP)
+            if (!isArpActive) {
+                isArpActive = true;
+                runArpeggioLoop(); // Iniciar bucle recursivo
+            }
+        } else {
+            // MODO ACORDE (ONE SHOT)
+            synth.playChord(notes);
+        }
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+        // Al soltar espacio, cortamos el bucle del arpegio
+        stopAudio();
+    }
 });
