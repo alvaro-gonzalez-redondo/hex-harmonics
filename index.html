@@ -22,11 +22,11 @@
     <!-- Panel UI Principal -->
     <div id="ui">
         <div class="panel-header" id="uiHeader">
-            <span>⚙️ Configuración</span>
+            <span>⚙️ Configuration</span>
             <span class="toggle-icon">▼</span>
         </div>
         <div class="panel-content" id="uiContent">
-            <div><strong>Sistema (EDO)</strong></div>
+            <div><strong>System (EDO)</strong></div>
             <select id="edoSelect">
                 <option value="12">12 TET</option>
                 <option value="19">19 TET</option>
@@ -35,22 +35,22 @@
                 <option value="72">72 TET</option>
             </select>
 
-            <label>Sensibilidad de Luz</label>
+            <label>Light Sensibility</label>
             <input type="range" id="sensSlider" min="5" max="80" value="80">
 
-            <label>Filtro Racional</label>
-            <div class="slider-labels"><span>Exacto</span><span>Simple</span></div>
+            <label>Rational Filter</label>
+            <div class="slider-labels"><span>Exact</span><span>Simple</span></div>
             <input type="range" id="complexitySlider" min="0.5" max="10.0" step="0.1" value="10.0">
 
             <div class="info" id="cellInfo">Toca para activar notas.</div>
 
             <!-- Botón MIDI Manual -->
             <button id="btnMidi" style="margin-top:15px; width:100%; background:#444; color:#ccc;" class="btn">
-                🎹 Activar MIDI
+                🎹 Activate MIDI
             </button>
             <div id="midiStatus" style="font-size:0.7em; text-align:center; margin-top:5px; color:#666; display:none;"></div>
 
-            <button id="btnFullscreen" class="btn" style="margin-top:5px; width:100%; background:#333;">⛶ Pantalla Completa</button>
+            <button id="btnFullscreen" class="btn" style="margin-top:5px; width:100%; background:#333;">⛶ Full Screen</button>
         </div>
     </div>
 
@@ -58,7 +58,7 @@
     <div id="legend">
         <!-- Cabecera que recibirá el click -->
         <div class="panel-header" id="legendHeader">
-            <span>🎨 Leyenda</span>
+            <span>🎨 Legend</span>
             <span class="toggle-icon">▼</span>
         </div>
         <!-- Contenido que se ocultará (AQUÍ ES DONDE FALTABA EL ID) -->
@@ -70,7 +70,7 @@
 
         <!-- Cabecera -->
         <div class="panel-header" id="linearHeader" style="background: rgba(15,15,15,0.95); padding: 5px 10px; border-top: 1px solid #444; margin: 0; color: #aaa; font-size: 0.8em;">
-            <span>📏 Visualizador Lineal</span>
+            <span>📏 Linear Visualizer</span>
             <span class="toggle-icon">▼</span>
         </div>
 

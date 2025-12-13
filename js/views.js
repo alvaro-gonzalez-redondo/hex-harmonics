@@ -218,7 +218,7 @@ export class Renderer {
         // Ya no hace falta poner el título aquí porque está en el HTML (header)
         // legendContainer.innerHTML = "<strong>Límites Primos</strong>"; <-- BORRAR ESTO
 
-        const labels = { 1: "Octava", 3: "3 (5tas)", 5: "5 (3ras)", 7: "7 (Harm)", 11: "11 (Neutro)", 13: "13", 17: ">13" };
+        const labels = { 1: "Octave", 3: "3 (5th)", 5: "5 (3rd)", 7: "7 (Harm)", 11: "11 (Neutral)", 13: "13", 17: ">13" };
         const limits = [1, 3, 5, 7, 11, 13, 17];
 
         limits.forEach(l => {
