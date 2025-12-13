@@ -79,7 +79,7 @@ gap: 5px;
     /* En móvil, a veces es mejor 'column' si tapa mucho el mapa,
      *          o 'row' si quieres que quede como una barra superior.
      *          'row' suele ser más limpio arriba. */
-    flex-direction: row;
+    flex-direction: column;
     }
 
     /* Reducimos un poco el padding de los botones en móvil */
