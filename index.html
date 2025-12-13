@@ -49,6 +49,8 @@
                 🎹 Activar MIDI
             </button>
             <div id="midiStatus" style="font-size:0.7em; text-align:center; margin-top:5px; color:#666; display:none;"></div>
+
+            <button id="btnFullscreen" class="btn" style="margin-top:5px; width:100%; background:#333;">⛶ Pantalla Completa</button>
         </div>
     </div>
 
@@ -63,9 +65,19 @@
         <div class="panel-content" id="legendContent"></div>
     </div>
 
-    <!-- Visualizador Lineal -->
-    <div id="linearContainer">
-        <canvas id="linearCanvas"></canvas>
+    <!-- Visualizador Lineal (Ahora con cabecera colapsable) -->
+    <div id="linearContainerWrapper" style="position: absolute; bottom: 0; left: 0; width: 100%; z-index: 5;">
+
+        <!-- Cabecera -->
+        <div class="panel-header" id="linearHeader" style="background: rgba(15,15,15,0.95); padding: 5px 10px; border-top: 1px solid #444; margin: 0; color: #aaa; font-size: 0.8em;">
+            <span>📏 Visualizador Lineal</span>
+            <span class="toggle-icon">▼</span>
+        </div>
+
+        <!-- Contenido (Canvas) -->
+        <div class="panel-content" id="linearContent" style="background: rgba(15,15,15,0.95); height: 120px; transition: height 0.3s ease;">
+            <canvas id="linearCanvas"></canvas>
+        </div>
     </div>
 
     <!-- Controles de Audio -->

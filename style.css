@@ -42,7 +42,10 @@ display: flex;
 flex-direction: column;
 gap: 5px;
 }
-.legend-item { display: flex; align-items: center; gap: 8px; }
+.legend-item {
+    display: flex; align-items: center; gap: 8px;
+    white-space: nowrap; /* Ajuste para que los items no fuercen ancho */
+}
 .color-box { width: 12px; height: 12px; border-radius: 2px; border: 1px solid #555; }
 
 /* Visualizador Lineal */
@@ -54,14 +57,37 @@ gap: 5px;
 
 /* Botones Audio */
 #audioControls {
-    position: absolute; bottom: 130px; right: 20px;
-    display: flex; gap: 10px; z-index: 10;
+    position: absolute;
+    top: 20px;       /* Cambiado de bottom a top */
+    right: 20px;
+    bottom: auto;    /* Asegura que no haya conflicto si había reglas anteriores */
+    display: flex;
+    gap: 10px;
+    z-index: 10;
 }
 .btn { border: none; padding: 10px 20px; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
 .btn-chord { background: #2980b9; }
 .btn-chord:active { background: #1f618d; }
 .btn-arp { background: #27ae60; }
 .btn-arp:active { background: #1e8449; }
+
+/* Ajuste móvil */
+@media (max-width: 600px) {
+    #audioControls {
+    top: 10px;
+    right: 10px;
+    /* En móvil, a veces es mejor 'column' si tapa mucho el mapa,
+     *          o 'row' si quieres que quede como una barra superior.
+     *          'row' suele ser más limpio arriba. */
+    flex-direction: row;
+    }
+
+    /* Reducimos un poco el padding de los botones en móvil */
+    .btn {
+        padding: 8px 12px;
+        font-size: 0.8em;
+    }
+}
 
 #hexCanvas { margin-bottom: 120px; display: block; }
 
@@ -75,27 +101,23 @@ gap: 5px;
 .toggle-icon { transition: transform 0.3s ease; }
 .panel-content { overflow: hidden; }
 
-/* ESTADO COLAPSADO */
-/* Aplicamos la clase al padre (#ui o #legend), y ocultamos el hijo (.panel-content) */
+/* Regla genérica fuerte */
 .collapsed .panel-content {
-    display: none;
+    display: none !important; /* El !important fuerza el ocultamiento */
+    height: 0;
+    margin: 0;
+    padding: 0;
 }
+
 .collapsed .toggle-icon {
     transform: rotate(-90deg);
 }
 
-/* Forzar estilo para leyenda */
+/* Ajuste específico para Legend cuando está colapsado */
 #legend.collapsed {
-padding-bottom: 5px; /* Reducir padding cuando está cerrado */
+padding-bottom: 5px;
 width: auto;
-}
-
-/* Ajuste móvil */
-@media (max-width: 600px) {
-    #ui { width: 180px; font-size: 0.9em; }
-    #legend { bottom: 140px; } /* Subir para no tapar controles de audio */
-    #audioControls { bottom: 140px; right: 10px; flex-direction: column; }
-    .btn { padding: 8px 12px; font-size: 0.8em; }
+min-width: 0; /* Permite que se encoja totalmente */
 }
 
 /* Estado Activo para botones */
@@ -105,3 +127,13 @@ width: auto;
     border: 2px solid white;
 }
 .btn-midi-active { background: #27ae60 !important; color: white !important; }
+
+/* Ajuste para el colapsado lineal */
+#linearContainerWrapper.collapsed #linearContent {
+height: 0 !important; /* Forzamos altura 0 */
+display: block !important; /* Mantenemos block para la transición, pero sin altura */
+}
+
+#linearContainerWrapper.collapsed {
+background: transparent; /* Que solo se vea la barrita de título */
+}

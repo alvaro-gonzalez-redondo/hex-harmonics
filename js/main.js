@@ -154,6 +154,18 @@ const setupPanel = (headerId, contentId) => {
 // Asegúrate de que esto se llame DESPUÉS de que el DOM esté listo
 setupPanel('uiHeader', 'uiContent');
 setupPanel('legendHeader', 'legendContent');
+setupPanel('linearHeader', 'linearContent');
+
+const btnFullscreen = document.getElementById('btnFullscreen');
+btnFullscreen.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+            console.log(`Error al activar pantalla completa: ${err.message}`);
+        });
+    } else {
+        document.exitFullscreen();
+    }
+});
 
 // --- CONTROLES Y EVENTOS ---
 
