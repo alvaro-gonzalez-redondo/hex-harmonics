@@ -6,7 +6,7 @@ A web-based interactive tool for exploring **Microtonal Harmony** and **Consonan
 ![Status](https://img.shields.io/badge/status-active-success.svg)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
 
-## 🔗 [Live Demo](https://TU-USUARIO.github.io/NOMBRE-DEL-REPO/)
+## 🔗 [Live Demo](https://alvaro-gonzalez-redondo.github.io/hex-harmonics/)
 
 ## ✨ Features
 
@@ -40,7 +40,7 @@ Since this project uses ES Modules, you need a local server to run it.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/YOUR_USERNAME/REPO_NAME.git
+git clone git@github.com:alvaro-gonzalez-redondo/hex-harmonics.git
 
 # 2. Go to the directory
 cd REPO_NAME
