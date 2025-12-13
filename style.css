@@ -58,11 +58,15 @@ gap: 5px;
 /* Botones Audio */
 #audioControls {
     position: absolute;
-    top: 20px;       /* Cambiado de bottom a top */
+    top: 20px;
     right: 20px;
-    bottom: auto;    /* Asegura que no haya conflicto si había reglas anteriores */
+    bottom: auto;
+
     display: flex;
-    gap: 10px;
+    flex-direction: column; /* <--- Esto hace la magia: apilados verticalmente */
+    gap: 10px;              /* Espacio vertical entre botones */
+    align-items: flex-end;  /* Los alinea al borde derecho para que se vea ordenado */
+
     z-index: 10;
 }
 .btn { border: none; padding: 10px 20px; color: white; border-radius: 4px; cursor: pointer; font-size: 0.9em; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
@@ -76,13 +80,10 @@ gap: 5px;
     #audioControls {
     top: 10px;
     right: 10px;
-    /* En móvil, a veces es mejor 'column' si tapa mucho el mapa,
-     *          o 'row' si quieres que quede como una barra superior.
-     *          'row' suele ser más limpio arriba. */
+    /* Mantenemos la columna en móvil también para consistencia */
     flex-direction: column;
     }
 
-    /* Reducimos un poco el padding de los botones en móvil */
     .btn {
         padding: 8px 12px;
         font-size: 0.8em;
