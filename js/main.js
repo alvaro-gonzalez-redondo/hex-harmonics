@@ -212,3 +212,34 @@ btnArp.addEventListener('click', () => {
         }
     }
 });
+
+// Generar Checkboxes de Límites Dinámicamente
+const limitsDiv = document.getElementById('limitFilters');
+[3, 5, 7, 11, 13, 17].forEach(limit => {
+    const lbl = document.createElement('label');
+    lbl.style.marginRight = "8px";
+
+    const chk = document.createElement('input');
+    chk.type = "checkbox";
+    chk.checked = true;
+    chk.onchange = (e) => renderer.toggleLimitFilter(limit, e.target.checked);
+
+    lbl.appendChild(chk);
+    lbl.appendChild(document.createTextNode(limit));
+    limitsDiv.appendChild(lbl);
+});
+
+// Checkboxes de Factores
+document.getElementById('chkConsonance').onchange = (e) => renderer.toggleFactor('consonance', e.target.checked);
+document.getElementById('chkClarity').onchange = (e) => renderer.toggleFactor('clarity', e.target.checked);
+document.getElementById('chkTuning').onchange = (e) => renderer.toggleFactor('tuning', e.target.checked);
+
+// Slider de Ancho de Banda
+const bwSlider = document.getElementById('bandwidthSlider');
+const bwVal = document.getElementById('bwValue');
+bwSlider.addEventListener('change', (e) => { // 'change' al soltar, 'input' al mover
+    renderer.setBandwidth(e.target.value);
+});
+bwSlider.addEventListener('input', (e) => {
+    bwVal.innerText = e.target.value;
+});

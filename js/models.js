@@ -139,14 +139,14 @@ export class Grid {
 export class HarmonicLUT {
     constructor() { this.table = []; }
 
-    recalculate(edo, complexityWeight) {
+    recalculate(edo, complexityWeight, bandwidthScale = 1.0) {
         this.edo = parseInt(edo);
         const range = this.edo * 4;
         this.table = new Array(range);
 
         for (let steps = 0; steps < range; steps++) {
             const ratio = Math.pow(2, steps / this.edo);
-            const roughness = HarmonicMath.complexRoughness(ratio);
+            const roughness = HarmonicMath.complexRoughness(ratio, bandwidthScale);
 
             // Normalizar a una octava [1, 2)
             let normRatio = ratio;

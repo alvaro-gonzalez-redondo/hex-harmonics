@@ -42,6 +42,13 @@ export class Renderer {
             initialDist: 0 // pinch zoom
         };
 
+        // ESTADO DE FILTROS
+        this.filters = {
+            limits: { 1: true, 3: true, 5: true, 7: true, 11: true, 13: true, 17: true },
+            factors: { consonance: true, clarity: true, tuning: true },
+            bandwidth: 1.0
+        };
+
         // --- LISTENERS ---
         this.canvas.addEventListener('mousedown', e => this.onStart(e));
         this.canvas.addEventListener('mousemove', e => this.onMove(e));
@@ -250,15 +257,39 @@ export class Renderer {
         }
     }
 
+    // Método para cambiar filtros de límite
+    toggleLimitFilter(limit, isActive) {
+        this.filters.limits[limit] = isActive;
+        this.refresh();
+    }
+
+    // Método para cambiar factores de brillo
+    toggleFactor(factor, isActive) {
+        this.filters.factors[factor] = isActive;
+        this.refresh();
+    }
+
+    // Método para cambiar ancho de banda (Recalcula LUT!)
+    setBandwidth(val) {
+        this.filters.bandwidth = parseFloat(val);
+        this.lut.recalculate(this.grid.tuning.edo, this.complexityWeight, this.filters.bandwidth);
+        this.refresh();
+    }
+
     recalculateHeatmap() {
         const activeCells = this.grid.getActiveCells();
         const cells = this.grid.getAll();
+        // Factor de ganancia para la curva de consonancia
         const gain = this.sensitivity / 10;
 
+        // Resetear estado visual de todas las celdas
         cells.forEach(c => { c.cachedColor = null; c.harmonicLabel = ""; });
+
+        // Si no hay notas activas, salimos (todo negro)
         if (activeCells.length === 0) return;
 
         cells.forEach(target => {
+            // No repintamos las notas que el usuario está tocando (se pintan blancas/activas luego)
             if (target.active) return;
 
             const baseColor = {r:0, g:0, b:0};
@@ -266,39 +297,87 @@ export class Renderer {
             let bestIntervalData = null;
             let minComplexity = 999;
 
+            // 1. Calcular Roughness acumulada y buscar el mejor intervalo racional
             activeCells.forEach(source => {
                 const diffSteps = Math.abs(target.pitchSteps - source.pitchSteps);
                 const lutData = this.lut.getData(diffSteps);
+
                 totalRoughness += lutData.roughness;
+
+                // Buscamos el intervalo más simple (menor complejidad)
                 if (lutData.limit > 0 && lutData.complexity < minComplexity) {
                     minComplexity = lutData.complexity;
                     bestIntervalData = lutData;
                 }
             });
 
+            // 2. Etiqueta de texto (si existe intervalo conocido)
             if (bestIntervalData) {
                 target.harmonicLabel = `${bestIntervalData.label} (Err: ${bestIntervalData.error.toFixed(1)}¢)`;
             }
 
-            // Cálculo de Fuerza Armónica
-            const consonance = 1 / (1 + (totalRoughness * (6 / gain)));
-            let finalColor = baseColor;
-
+            // 3. Determinar si el color del intervalo está PERMITIDO por los filtros
+            let targetColor = null;
             if (bestIntervalData && bestIntervalData.color) {
-                const clarity = Math.exp(-0.15 * bestIntervalData.complexity);
-                const tuningAccuracy = Math.max(0, Math.min(1, 1 - (bestIntervalData.error / 20)));
-
-                const logBlend =
-                WEIGHTS.clarity * Math.log(clarity + 1e-6) +
-                WEIGHTS.consonance * Math.log(consonance + 1e-6) +
-                WEIGHTS.tuning * Math.log(tuningAccuracy + 1e-6);
-
-                const harmonicStrength = Math.exp(logBlend);
-                finalColor = lerpColor(baseColor, bestIntervalData.color, harmonicStrength);
-            } else {
-                finalColor = lerpColor(baseColor, {r:60, g:20, b:20}, 1 - consonance);
+                // Verificamos si el checkbox de este límite (ej: 5 para 3ras) está activo
+                if (this.filters.limits[bestIntervalData.limit]) {
+                    targetColor = bestIntervalData.color;
+                }
             }
 
+            // --- CÁLCULO DE BRILLO (HARMONIC STRENGTH) ---
+
+            // A. Valores base (0.0 a 1.0)
+            // Consonancia física (siempre se calcula)
+            const val_consonance = 1 / (1 + (totalRoughness * (6 / gain)));
+
+            // Claridad y Afinación (solo si hay match racional)
+            let val_clarity = 1.0;
+            let val_tuning = 1.0;
+
+            if (bestIntervalData) {
+                val_clarity = Math.exp(-0.15 * bestIntervalData.complexity);
+                val_tuning = Math.max(0, Math.min(1, 1 - (bestIntervalData.error / 20)));
+            }
+
+            // B. Aplicar Pesos Dinámicos (Checkboxes)
+            // Si el checkbox está desactivado, el peso es 0.
+            const w_clarity = this.filters.factors.clarity ? WEIGHTS.clarity : 0;
+            const w_consonance = this.filters.factors.consonance ? WEIGHTS.consonance : 0;
+            const w_tuning = this.filters.factors.tuning ? WEIGHTS.tuning : 0;
+
+            // C. Mezcla Logarítmica
+            // Nota: Si un peso es 0, el término se anula (log(x)*0 = 0), por lo que no afecta al brillo.
+            const logBlend =
+            w_clarity * Math.log(val_clarity + 1e-6) +
+            w_consonance * Math.log(val_consonance + 1e-6) +
+            w_tuning * Math.log(val_tuning + 1e-6);
+
+            // Ajuste de normalización: Si desactivamos factores, el brillo total bajaría mucho.
+            // Opcional: Podríamos dividir por la suma de pesos activos para normalizar,
+            // pero dejarlo así permite al usuario "apagar" componentes visuales literalmente.
+
+            const harmonicStrength = Math.exp(logBlend);
+
+
+            // --- MEZCLA DE COLOR FINAL ---
+
+            let finalColor = baseColor;
+
+            if (targetColor) {
+                // CASO 1: Intervalo Racional identificado y permitido por filtros
+                finalColor = lerpColor(baseColor, targetColor, harmonicStrength);
+            } else {
+                // CASO 2: Intervalo desconocido o filtrado (Fallback)
+                // Usamos una visualización de disonancia cruda (Rojo oscuro)
+                // pero solo si el factor de Consonancia está activo.
+                if (this.filters.factors.consonance) {
+                    // Muestra rojo suave donde hay mucha disonancia (1 - consonance)
+                    finalColor = lerpColor(baseColor, {r:60, g:60, b:60}, 1 - val_consonance);
+                }
+            }
+
+            // Guardar color en caché (clamped 0-255)
             target.cachedColor = {
                 r: Math.max(0, Math.min(255, finalColor.r)),
                       g: Math.max(0, Math.min(255, finalColor.g)),

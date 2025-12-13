@@ -85,8 +85,8 @@ export class HarmonicMath {
      * Modelo de disonancia sensorial (Curva de Plomp-Levelt).
      * Calcula la "aspereza" teórica entre dos tonos.
      */
-    static complexRoughness(ratio) {
-        const N = 10; // Armónicos a considerar
+    static complexRoughness(ratio, bandwidthScale = 1.0) {
+        const N = 10;
         const f1 = 261.63;
         const f2 = f1 * ratio;
         let R = 0;
@@ -95,16 +95,17 @@ export class HarmonicMath {
             for (let j = 1; j <= N; j++) {
                 const p1 = f1 * i;
                 const p2 = f2 * j;
-                const a1 = 1 / (i ** 1.1); // Amplitud decreciente
+                const a1 = 1 / (i ** 1.1);
                 const a2 = 1 / (j ** 1.1);
 
                 const fMin = Math.min(p1, p2);
                 const df = Math.abs(p1 - p2);
-                // Ancho de banda crítico (Híbrido Vassilakis)
-                const cbw = 0.24 * (fMin + 25);
+
+                // Si bandwidthScale < 1, la curva es más estrecha (menos borrosa)
+                const cbw = 0.24 * (fMin + 25) * bandwidthScale;
 
                 const x = df / cbw;
-                const S1 = 3.5, S2 = 5.75;
+                const S1 = 3.5; const S2 = 5.75;
                 const amplitude = (a1 * a2) ** 0.1;
                 const dis = amplitude * (Math.exp(-S1 * x) - Math.exp(-S2 * x));
 

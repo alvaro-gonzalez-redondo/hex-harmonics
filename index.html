@@ -42,7 +42,31 @@
             <div class="slider-labels"><span>Exact</span><span>Simple</span></div>
             <input type="range" id="complexitySlider" min="0.5" max="10.0" step="0.1" value="10.0">
 
-            <div class="info" id="cellInfo">Toca para activar notas.</div>
+            <div class="info" id="cellInfo">Touch to activate notes.</div>
+
+            <fieldset style="border:1px solid #444; padding:5px; margin-top:10px;">
+                <legend style="font-size:0.8em; color:#aaa;">Visual Filters</legend>
+
+                <!-- Filtros de Límite Primo -->
+                <div style="font-size:0.7em; margin-bottom:5px;">Limit Colors:</div>
+                <div id="limitFilters" style="display:flex; flex-wrap:wrap; gap:5px; font-size:0.7em;">
+                    <!-- Se generarán dinámicamente en JS -->
+                </div>
+
+                <!-- Componentes de Brillo -->
+                <div style="font-size:0.7em; margin-top:8px; margin-bottom:5px;">Light Factors:</div>
+                <div style="font-size:0.7em; display:flex; flex-direction:column; gap:2px;">
+                    <label><input type="checkbox" id="chkConsonance" checked> Consonance (Physics)</label>
+                    <label><input type="checkbox" id="chkClarity" checked> Clarity (Mathematics)</label>
+                    <label><input type="checkbox" id="chkTuning" checked> Tuning (Accuracy)</label>
+                </div>
+
+                <!-- Slider Plomp-Levelt -->
+                <div style="font-size:0.7em; margin-top:8px;">
+                    Bandwidth (Roughness): <span id="bwValue">1.0</span>x
+                </div>
+                <input type="range" id="bandwidthSlider" min="0.1" max="2.0" step="0.1" value="1.0">
+            </fieldset>
 
             <!-- Botón MIDI Manual -->
             <button id="btnMidi" style="margin-top:15px; width:100%; background:#444; color:#ccc;" class="btn">
