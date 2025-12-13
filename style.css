@@ -1,5 +1,8 @@
 body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif; color: #eee; }
-canvas { display: block; }
+canvas {
+    display: block;
+    touch-action: none; /* CRUCIAL: Desactiva scroll nativo sobre el canvas */
+}
 
 /* UI Panel */
 #ui {
@@ -19,14 +22,25 @@ label { font-size: 0.85em; color: #aaa; margin-top: 10px; display: block; }
 
 /* Leyenda */
 #legend {
-    position: absolute; bottom: 150px; left: 10px;
-    background: rgba(20, 20, 20, 0.9);
-    padding: 10px; border-radius: 8px;
-    border: 1px solid #444;
-    font-size: 0.8em;
-    pointer-events: none;
-    display: flex; flex-direction: column; gap: 5px;
-    z-index: 5;
+position: absolute;
+bottom: 150px; /* Suficiente espacio para no chocar con el audio */
+left: 10px;
+background: rgba(20, 20, 20, 0.9);
+padding: 10px;
+border-radius: 8px;
+border: 1px solid #444;
+font-size: 0.8em;
+z-index: 5;
+/* Ancho mínimo para que el texto de la cabecera quepa bien */
+min-width: 120px;
+}
+
+/* El contenido debe tener un pequeño margen superior si está expandido */
+#legendContent {
+margin-top: 5px;
+display: flex;
+flex-direction: column;
+gap: 5px;
 }
 .legend-item { display: flex; align-items: center; gap: 8px; }
 .color-box { width: 12px; height: 12px; border-radius: 2px; border: 1px solid #555; }
@@ -50,3 +64,44 @@ label { font-size: 0.85em; color: #aaa; margin-top: 10px; display: block; }
 .btn-arp:active { background: #1e8449; }
 
 #hexCanvas { margin-bottom: 120px; display: block; }
+
+/* Paneles Colapsables */
+.panel-header {
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; padding-bottom: 5px; border-bottom: 1px solid #444;
+    margin-bottom: 10px; font-weight: bold; user-select: none;
+}
+
+.toggle-icon { transition: transform 0.3s ease; }
+.panel-content { overflow: hidden; }
+
+/* ESTADO COLAPSADO */
+/* Aplicamos la clase al padre (#ui o #legend), y ocultamos el hijo (.panel-content) */
+.collapsed .panel-content {
+    display: none;
+}
+.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+/* Forzar estilo para leyenda */
+#legend.collapsed {
+padding-bottom: 5px; /* Reducir padding cuando está cerrado */
+width: auto;
+}
+
+/* Ajuste móvil */
+@media (max-width: 600px) {
+    #ui { width: 180px; font-size: 0.9em; }
+    #legend { bottom: 140px; } /* Subir para no tapar controles de audio */
+    #audioControls { bottom: 140px; right: 10px; flex-direction: column; }
+    .btn { padding: 8px 12px; font-size: 0.8em; }
+}
+
+/* Estado Activo para botones */
+.btn.active {
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    filter: brightness(1.2);
+    border: 2px solid white;
+}
+.btn-midi-active { background: #27ae60 !important; color: white !important; }

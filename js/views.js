@@ -19,7 +19,8 @@ export class Renderer {
         this.grid = grid;
         this.onHexClick = onHexClick;
 
-        this.hoveredHex = null;
+        // --- Estado visual ---
+        this.hoveredHex = null; // Solo desktop
         this.sensitivity = 80;
         this.complexityWeight = 10.0;
 
@@ -28,26 +29,158 @@ export class Renderer {
 
         this.initLegend();
         this.resize();
-
-        // Listeners internos del canvas
         window.addEventListener('resize', () => this.resize());
-        this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-        this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+
+        // --- ESTADO DE INPUT UNIFICADO ---
+        this.inputState = {
+            isDragging: false,
+            isClickCandidate: false,
+            startX: 0,
+            startY: 0,
+            lastX: 0,
+            lastY: 0,
+            initialDist: 0 // pinch zoom
+        };
+
+        // --- LISTENERS ---
+        this.canvas.addEventListener('mousedown', e => this.onStart(e));
+        this.canvas.addEventListener('mousemove', e => this.onMove(e));
+        this.canvas.addEventListener('mouseup',   e => this.onEnd(e));
+
+        this.canvas.addEventListener('touchstart', e => this.onStart(e), { passive: false });
+        this.canvas.addEventListener('touchmove',  e => this.onMove(e),  { passive: false });
+        this.canvas.addEventListener('touchend',   e => this.onEnd(e));
+
+        this.canvas.addEventListener('wheel', e => this.onWheel(e), { passive: false });
     }
 
-    initLegend() {
-        const legend = document.getElementById('legend');
-        legend.innerHTML = "<strong>Prime Limits</strong>";
-        const labels = { 1: "Octave", 3: "3 (5th)", 5: "5 (3rd)", 7: "7 (Harm)", 11: "11 (Neutral)", 13: "13", 17: ">13" };
-        [1, 3, 5, 7, 11, 13, 17].forEach(l => {
-            const color = LIMIT_COLORS[l] || LIMIT_COLORS[17];
-            legend.innerHTML += `
-                <div class="legend-item">
-                    <div class="color-box" style="background:${rgbToString(color)}"></div>
-                    <span>${labels[l] || `Lim ${l}`}</span>
-                </div>`;
-        });
+    /* ============================================================
+     *       INPUT UNIFICADO
+     *    ============================================================ */
+
+    getCoords(e) {
+        if (e.touches && e.touches.length > 0) {
+            return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+        return { x: e.clientX, y: e.clientY };
     }
+
+    getTouchDist(e) {
+        if (e.touches && e.touches.length >= 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            return Math.hypot(dx, dy);
+        }
+        return 0;
+    }
+
+    onStart(e) {
+        if (e.type === 'touchstart') e.preventDefault();
+
+        const pt = this.getCoords(e);
+
+        this.inputState.isDragging = true;
+        this.inputState.isClickCandidate = true;
+        this.inputState.startX = pt.x;
+        this.inputState.startY = pt.y;
+        this.inputState.lastX = pt.x;
+        this.inputState.lastY = pt.y;
+
+        if (e.touches && e.touches.length === 2) {
+            this.inputState.isClickCandidate = false;
+            this.inputState.initialDist = this.getTouchDist(e);
+        }
+    }
+
+    onMove(e) {
+        // Hover SOLO mouse y sin arrastre
+        if (!this.inputState.isDragging && e.type === 'mousemove') {
+            this.handleHover(e);
+            return;
+        }
+
+        if (!this.inputState.isDragging) return;
+        if (e.cancelable) e.preventDefault();
+
+        const pt = this.getCoords(e);
+
+        // --- PINCH ZOOM ---
+        if (e.touches && e.touches.length === 2) {
+            const dist = this.getTouchDist(e);
+            if (this.inputState.initialDist > 0) {
+                const scale = dist / this.inputState.initialDist;
+                this.layout.size = Math.max(10, Math.min(150, this.layout.size * scale));
+                this.inputState.initialDist = dist;
+                this.draw();
+            }
+            return;
+        }
+
+        // --- PAN ---
+        const dx = pt.x - this.inputState.lastX;
+        const dy = pt.y - this.inputState.lastY;
+
+        this.layout.origin.x += dx;
+        this.layout.origin.y += dy;
+
+        this.inputState.lastX = pt.x;
+        this.inputState.lastY = pt.y;
+
+        const moved = Math.hypot(
+            pt.x - this.inputState.startX,
+            pt.y - this.inputState.startY
+        );
+        if (moved > 10) this.inputState.isClickCandidate = false;
+
+        this.draw();
+    }
+
+    onEnd(e) {
+        this.inputState.isDragging = false;
+
+        if (this.inputState.isClickCandidate) {
+            const rect = this.canvas.getBoundingClientRect();
+            const clickPt = {
+                x: this.inputState.startX - rect.left,
+                y: this.inputState.startY - rect.top
+            };
+
+            const hexPos = this.layout.pixelToHex(clickPt);
+            const cell = this.grid.getHex(hexPos);
+
+            if (cell && this.onHexClick) {
+                this.onHexClick(cell);
+            }
+        }
+
+        this.inputState.initialDist = 0;
+    }
+
+    onWheel(e) {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 1.05 : 0.95;
+        this.layout.size = Math.max(10, Math.min(150, this.layout.size * delta));
+        this.draw();
+    }
+
+    handleHover(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const hexPos = this.layout.pixelToHex({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        });
+        const cell = this.grid.getHex(hexPos);
+
+        if (this.hoveredHex !== cell) {
+            this.hoveredHex = cell || null;
+            this.updateUI();
+            this.draw();
+        }
+    }
+
+    /* ============================================================
+     *       API EXISTENTE (SIN CAMBIOS FUNCIONALES)
+     *    ============================================================ */
 
     setComplexityWeight(val) {
         this.complexityWeight = parseFloat(val);
@@ -68,28 +201,40 @@ export class Renderer {
     resize() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
-        this.layout.origin = { x: this.canvas.width / 2, y: this.canvas.height / 2 };
+        this.layout.origin = {
+            x: this.canvas.width / 2,
+            y: this.canvas.height / 2
+        };
         this.draw();
     }
 
-    handleMouseMove(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        const hexPos = this.layout.pixelToHex({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-        const cell = this.grid.getHex(hexPos);
+    initLegend() {
+        // CAMBIO: Buscamos 'legendContent' en lugar de 'legend'
+        const legendContainer = document.getElementById('legendContent');
+        if (!legendContainer) return;
 
-        if (this.hoveredHex !== cell) {
-            this.hoveredHex = cell || null;
-            this.updateUI();
-            this.draw();
-        }
-    }
+        legendContainer.innerHTML = ""; // Limpiar contenido previo si hubiera
 
-    handleMouseDown(e) {
-        if (this.hoveredHex) {
-            if (this.onHexClick) {
-                this.onHexClick(this.hoveredHex);
-            }
-        }
+        // Ya no hace falta poner el título aquí porque está en el HTML (header)
+        // legendContainer.innerHTML = "<strong>Límites Primos</strong>"; <-- BORRAR ESTO
+
+        const labels = { 1: "Octava", 3: "3 (5tas)", 5: "5 (3ras)", 7: "7 (Harm)", 11: "11 (Neutro)", 13: "13", 17: ">13" };
+        const limits = [1, 3, 5, 7, 11, 13, 17];
+
+        limits.forEach(l => {
+            // Importar LIMIT_COLORS desde config si no está en el scope,
+            // o usar HarmonicMath.LIMIT_COLORS si así lo tienes.
+            // Asegúrate de tener acceso a los colores aquí.
+            // Asumiendo que importaste LIMIT_COLORS en views.js:
+            const color = LIMIT_COLORS[l] || LIMIT_COLORS[17];
+
+            // Generar HTML
+            legendContainer.innerHTML += `
+            <div class="legend-item">
+            <div class="color-box" style="background:rgb(${color.r},${color.g},${color.b})"></div>
+            <span>${labels[l] || `Lim ${l}`}</span>
+            </div>`;
+        });
     }
 
     updateUI() {
@@ -144,9 +289,9 @@ export class Renderer {
                 const tuningAccuracy = Math.max(0, Math.min(1, 1 - (bestIntervalData.error / 20)));
 
                 const logBlend =
-                    WEIGHTS.clarity * Math.log(clarity + 1e-6) +
-                    WEIGHTS.consonance * Math.log(consonance + 1e-6) +
-                    WEIGHTS.tuning * Math.log(tuningAccuracy + 1e-6);
+                WEIGHTS.clarity * Math.log(clarity + 1e-6) +
+                WEIGHTS.consonance * Math.log(consonance + 1e-6) +
+                WEIGHTS.tuning * Math.log(tuningAccuracy + 1e-6);
 
                 const harmonicStrength = Math.exp(logBlend);
                 finalColor = lerpColor(baseColor, bestIntervalData.color, harmonicStrength);
@@ -156,8 +301,8 @@ export class Renderer {
 
             target.cachedColor = {
                 r: Math.max(0, Math.min(255, finalColor.r)),
-                g: Math.max(0, Math.min(255, finalColor.g)),
-                b: Math.max(0, Math.min(255, finalColor.b))
+                      g: Math.max(0, Math.min(255, finalColor.g)),
+                      b: Math.max(0, Math.min(255, finalColor.b))
             };
         });
     }
@@ -219,6 +364,7 @@ export class Renderer {
         }
     }
 }
+
 
 export class LinearVisualizer {
     constructor(canvasId, grid) {

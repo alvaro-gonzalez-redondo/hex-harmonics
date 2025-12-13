@@ -49,7 +49,6 @@ const synth = new Synth();
 
 // Inicialización MIDI
 const midi = new MidiController(grid, synth);
-midi.init(); // Pide permisos al navegador
 
 // --- BINDINGS (Observadores y Eventos) ---
 
@@ -89,6 +88,8 @@ ui.edoSelect.addEventListener('change', (e) => {
     grid.refreshData(); // Actualizar frecuencias y notas en el grid
     renderer.refresh();
     linearViz.draw();
+
+    if (isArpOn) btnArp.click(); // Forzar apagado visual y lógico
 });
 
 // Sliders Visuales
@@ -130,3 +131,72 @@ window.addEventListener('keyup', (e) => {
 
 // Seguridad: Parar audio si la pestaña pierde foco
 window.addEventListener('blur', () => synth.stop());
+
+// GESTIÓN DE PANELES (UI)
+const setupPanel = (headerId, contentId) => {
+    const header = document.getElementById(headerId);
+    const content = document.getElementById(contentId);
+
+    if (!header || !content) {
+        console.error(`Panel setup failed: ${headerId} or ${contentId} not found.`);
+        return;
+    }
+
+    // El contenedor es el padre del contenido (ej: #ui o #legend)
+    const container = content.parentElement;
+
+    header.addEventListener('click', (e) => {
+        e.stopPropagation(); // Evita que el click pase al canvas
+        container.classList.toggle('collapsed');
+    });
+};
+
+// Asegúrate de que esto se llame DESPUÉS de que el DOM esté listo
+setupPanel('uiHeader', 'uiContent');
+setupPanel('legendHeader', 'legendContent');
+
+// --- CONTROLES Y EVENTOS ---
+
+// 1. Botón MIDI
+const btnMidi = document.getElementById('btnMidi');
+const midiStatus = document.getElementById('midiStatus');
+
+btnMidi.addEventListener('click', async () => {
+    if (midi.isReady) return; // Ya está activo
+
+    btnMidi.innerText = "Solicitando permiso...";
+    const success = await midi.init();
+
+    if (success) {
+        btnMidi.classList.add('btn-midi-active');
+        btnMidi.innerText = "MIDI Activado";
+        midiStatus.style.display = 'block';
+    } else {
+        btnMidi.innerText = "Error / No Soportado";
+        setTimeout(() => btnMidi.innerText = "🎹 Activar MIDI", 2000);
+    }
+});
+
+// 2. Botón Arpegio (Toggle)
+const btnArp = document.getElementById('btnArp');
+let isArpOn = false;
+
+btnArp.addEventListener('click', () => {
+    if (isArpOn) {
+        // APAGAR
+        synth.stop();
+        isArpOn = false;
+        btnArp.classList.remove('active');
+        btnArp.innerText = "Arpegio (Shift+Esp)";
+    } else {
+        // ENCENDER
+        const notes = grid.getActiveCells();
+        if (notes.length > 0) {
+            synth.stop(); // Reset por seguridad
+            synth.startArpeggioLoop(() => grid.getActiveCells());
+            isArpOn = true;
+            btnArp.classList.add('active');
+            btnArp.innerText = "⏹ Detener Arpegio";
+        }
+    }
+});

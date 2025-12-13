@@ -19,36 +19,49 @@
     <link rel="icon" type="image/x-icon" href="favicon.png">
 </head>
 <body>
+    <!-- Panel UI Principal -->
     <div id="ui">
-        <div><strong>System (EDO)</strong></div>
-        <select id="edoSelect">
-            <option value="12">12 TET</option>
-            <option value="19">19 TET</option>
-            <option value="31">31 TET</option>
-            <option value="53">53 TET</option>
-            <option value="72">72 TET</option>
-        </select>
-
-        <label>Light Sensitivity</label>
-        <input type="range" id="sensSlider" min="5" max="80" value="80">
-
-        <label>Rational Filter (Simplicity)</label>
-        <div class="slider-labels">
-            <span>Exact</span>
-            <span>Simple</span>
+        <div class="panel-header" id="uiHeader">
+            <span>⚙️ Configuración</span>
+            <span class="toggle-icon">▼</span>
         </div>
-        <input type="range" id="complexitySlider" min="0.5" max="10.0" step="0.1" value="10.0">
+        <div class="panel-content" id="uiContent">
+            <div><strong>Sistema (EDO)</strong></div>
+            <select id="edoSelect">
+                <option value="12">12 TET</option>
+                <option value="19">19 TET</option>
+                <option value="31">31 TET</option>
+                <option value="53">53 TET</option>
+                <option value="72">72 TET</option>
+            </select>
 
-        <div class="info" id="cellInfo">Click to activate notes.</div>
+            <label>Sensibilidad de Luz</label>
+            <input type="range" id="sensSlider" min="5" max="80" value="80">
 
-        <div id="midiStatus" style="font-size: 0.7em; color: #888; margin-top: 10px; text-align: center; border-top: 1px dashed #444; padding-top:5px;">
-            🎹 MIDI: Initializing...
+            <label>Filtro Racional</label>
+            <div class="slider-labels"><span>Exacto</span><span>Simple</span></div>
+            <input type="range" id="complexitySlider" min="0.5" max="10.0" step="0.1" value="10.0">
+
+            <div class="info" id="cellInfo">Toca para activar notas.</div>
+
+            <!-- Botón MIDI Manual -->
+            <button id="btnMidi" style="margin-top:15px; width:100%; background:#444; color:#ccc;" class="btn">
+                🎹 Activar MIDI
+            </button>
+            <div id="midiStatus" style="font-size:0.7em; text-align:center; margin-top:5px; color:#666; display:none;"></div>
         </div>
     </div>
 
-
-    <!-- Leyenda generada dinámicamente -->
-    <div id="legend"></div>
+    <!-- Leyenda (Estructura colapsable) -->
+    <div id="legend">
+        <!-- Cabecera que recibirá el click -->
+        <div class="panel-header" id="legendHeader">
+            <span>🎨 Leyenda</span>
+            <span class="toggle-icon">▼</span>
+        </div>
+        <!-- Contenido que se ocultará (AQUÍ ES DONDE FALTABA EL ID) -->
+        <div class="panel-content" id="legendContent"></div>
+    </div>
 
     <!-- Visualizador Lineal -->
     <div id="linearContainer">
