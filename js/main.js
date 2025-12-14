@@ -132,6 +132,53 @@ window.addEventListener('keyup', (e) => {
 // Seguridad: Parar audio si la pestaña pierde foco
 window.addEventListener('blur', () => synth.stop());
 
+// --- Referencias UI ---
+const slotDisplay = document.getElementById('slotDisplay');
+const btnClearSlot = document.getElementById('btnClearSlot');
+const btnClearAll = document.getElementById('btnClearAll');
+
+// --- EVENT LISTENERS ---
+
+// 1. Botones de Limpieza
+btnClearSlot.addEventListener('click', () => {
+    grid.clearCurrentSlot();
+    // Opcional: Detener audio si estaba sonando ese acorde
+    // synth.stop();
+});
+
+btnClearAll.addEventListener('click', () => {
+    if(confirm("¿Delete all chords?")) {
+        grid.clearAllSlots();
+        synth.stop();
+    }
+});
+
+// 2. Teclado (Actualizado para el nuevo display)
+window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+
+    let slot = -1;
+    if (e.key >= '1' && e.key <= '9') slot = parseInt(e.key);
+    else if (e.key === '0') slot = 10;
+
+    if (slot !== -1) {
+        synth.stop();
+        grid.setSlot(slot);
+
+        // Actualizar el nuevo display
+        slotDisplay.innerText = `Slot ${slot}`;
+
+        // Animación visual simple
+        slotDisplay.style.transform = "scale(1.2)";
+        setTimeout(() => slotDisplay.style.transform = "scale(1)", 100);
+
+        if (isArpOn) {
+            synth.stop();
+            synth.startArpeggioLoop(() => grid.getActiveCells());
+        }
+    }
+});
+
 // GESTIÓN DE PANELES (UI)
 const setupPanel = (headerId, contentId) => {
     const header = document.getElementById(headerId);

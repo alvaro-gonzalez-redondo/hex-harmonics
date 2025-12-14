@@ -70,10 +70,20 @@ export class Grid {
         this.stepToHexMap = new Map();
         this.tuning = tuningSystem;
         this.listeners = [];
+        this.currentSlot = 1;
     }
 
     subscribe(callback) { this.listeners.push(callback); }
     notify() { this.listeners.forEach(cb => cb(this)); }
+
+    setSlot(slotNumber) {
+        if (slotNumber < 1 || slotNumber > 10) return;
+        if (this.currentSlot === slotNumber) return;
+
+        this.currentSlot = slotNumber;
+        // Notificamos a las vistas para que se redibujen con las notas del nuevo slot
+        this.notify();
+    }
 
     addHex(hex) { this.updateHexData(hex, true); }
 
@@ -82,7 +92,30 @@ export class Grid {
         const pitchSteps = this.tuning.getPitchSteps(hex.q, hex.r);
         const freq = HarmonicMath.getFrequency(hex.q, hex.r, this.tuning.config, this.tuning.edo);
 
-        const data = isNew ? { hex, active: false } : this.map.get(hex.toString());
+        let data;
+        if (isNew) {
+            data = {
+                hex,
+                // En lugar de un boolean simple, usamos un Set
+                activeSlots: new Set()
+            };
+
+            // MAGIA: Definimos .active como una propiedad dinámica
+            // El resto de la app (Views, Audio) leerá .active y recibirá el estado del slot actual
+            Object.defineProperty(data, 'active', {
+                get: () => data.activeSlots.has(this.currentSlot),
+                                  set: (isActive) => {
+                                      if (isActive) data.activeSlots.add(this.currentSlot);
+                                      else data.activeSlots.delete(this.currentSlot);
+                                  },
+                                  enumerable: true,
+                                  configurable: true
+            });
+
+            this.map.set(hex.toString(), data);
+        } else {
+            data = this.map.get(hex.toString());
+        }
 
         // Actualizamos propiedades dinámicas
         Object.assign(data, {
@@ -93,18 +126,11 @@ export class Grid {
             harmonicLabel: ""
         });
 
-        // Guardar en el mapa inverso: Key=PitchSteps, Value=CellData
         this.stepToHexMap.set(pitchSteps, data);
-
-        if(isNew) this.map.set(hex.toString(), data);
     }
 
     getHex(hex) { return this.map.get(hex.toString()); }
-
-    // Método rápido para MIDI
-    getCellBySteps(steps) {
-        return this.stepToHexMap.get(steps);
-    }
+    getCellBySteps(steps) { return this.stepToHexMap.get(steps); }
 
     toggleHex(hex) {
         const cell = this.getHex(hex);
@@ -118,6 +144,22 @@ export class Grid {
 
     getAll() { return Array.from(this.map.values()); }
     getActiveCells() { return this.getAll().filter(c => c.active); }
+
+    // Borrar solo las notas del slot actual
+    clearCurrentSlot() {
+        for (let cell of this.map.values()) {
+            cell.activeSlots.delete(this.currentSlot);
+        }
+        this.notify();
+    }
+
+    // Borrar todo (pánico/reset)
+    clearAllSlots() {
+        for (let cell of this.map.values()) {
+            cell.activeSlots.clear();
+        }
+        this.notify();
+    }
 
     refreshData() {
         for (let [key, cell] of this.map) { this.updateHexData(cell.hex); }

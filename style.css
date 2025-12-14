@@ -138,3 +138,64 @@ display: block !important; /* Mantenemos block para la transición, pero sin alt
 #linearContainerWrapper.collapsed {
 background: transparent; /* Que solo se vea la barrita de título */
 }
+
+/* Panel Superior Central */
+#chordBar {
+position: absolute;
+top: 10px;
+left: 50%;
+transform: translateX(-50%); /* Centrado horizontal perfecto */
+background: rgba(20, 20, 20, 0.95);
+padding: 8px 15px;
+border-radius: 20px; /* Bordes más redondos para diferenciarlo */
+border: 1px solid #444;
+box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+z-index: 20; /* Por encima de todo */
+
+display: flex;
+align-items: center;
+gap: 15px;
+}
+
+#slotDisplay {
+font-weight: bold;
+color: #2ecc71;
+font-size: 1.1em;
+min-width: 60px; /* Evita saltos al cambiar número */
+text-align: center;
+}
+
+.chord-controls {
+    display: flex;
+    gap: 5px;
+}
+
+/* Botones Mini */
+.btn-mini {
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    color: #222; /* Texto oscuro para contraste con fondo claro */
+    font-weight: bold;
+    font-size: 0.75em;
+    cursor: pointer;
+    transition: filter 0.2s;
+}
+
+.btn-mini:hover { filter: brightness(1.1); }
+.btn-mini:active { filter: brightness(0.9); }
+
+/* Colores específicos */
+.btn-yellow { background-color: #f1c40f; }
+.btn-red    { background-color: #e74c3c; color: white; } /* Rojo con texto blanco */
+
+/* Ajuste móvil para que no choque con el botón de menú */
+@media (max-width: 500px) {
+    #chordBar {
+    top: 5px;
+    padding: 5px 10px;
+    width: 90%; /* Más ancho en móvil */
+    justify-content: space-between;
+    }
+    .btn-mini { padding: 8px 12px; } /* Botones más grandes para dedos */
+}
