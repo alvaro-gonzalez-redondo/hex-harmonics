@@ -27,6 +27,7 @@ export const EDO_CONFIGS = {
     12: { name: "12 TET", qStep: 2, rStep: 1, whiteKeys: [0, 2, 4, 5, 7, 9, 11] },
     19: { name: "19 TET", qStep: 3, rStep: 2, whiteKeys: [0, 3, 6, 8, 11, 14, 17] },
     31: { name: "31 TET", qStep: 5, rStep: 3, whiteKeys: [0, 5, 10, 13, 18, 23, 28] },
+    41: { name: "41 TET", qStep: 7, rStep: 4, whiteKeys: [0, 7, 13, 20, 24, 31, 38] },
     53: { name: "53 TET", qStep: 9, rStep: 4, whiteKeys: [0, 9, 18, 22, 31, 40, 49] },
-    72: { name: "72 TET", qStep: 12, rStep: 5, whiteKeys: [0, 12, 24, 30, 42, 54, 66] }
+    72: { name: "72 TET", qStep: 12, rStep: 7, whiteKeys: [0, 12, 24, 30, 42, 54, 66] }
 };
