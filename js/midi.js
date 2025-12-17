@@ -1,6 +1,5 @@
 /**
- * Manejador de Web MIDI API.
- * Conecta un teclado físico con el Grid virtual.
+ * Manejador de Web MIDI API con soporte para MPE / Microtonalidad.
  */
 export class MidiController {
     constructor(grid, synth) {
@@ -10,29 +9,29 @@ export class MidiController {
         this.inputs = [];
         this.isReady = false;
 
-        // Mapeo de notas activas para manejar NoteOff correctamente
-        // Key: MIDI Note Number -> Value: Hex Cell
+        // Mapeo de notas activas para manejar NoteOff
+        // Key: "Channel-Note" (ej: "1-60") -> Value: Hex Cell
         this.activeNotes = new Map();
+
+        // Estado del Pitch Bend por canal (1-16)
+        // Guardamos el valor crudo del Pitch Bend (0 - 16383). El centro es 8192.
+        this.channelBends = new Array(17).fill(8192);
+
+        // CONFIGURACIÓN MPE DEL FIRMWARE
+        // Según tu código C++: byte MPEpitchBendSemis = 48;
+        this.pitchBendRangeSemitones = 48;
     }
 
     async init() {
-        if (!navigator.requestMIDIAccess) {
-            console.warn("Web MIDI API no soportada en este navegador.");
-            return false;
-        }
-
+        if (!navigator.requestMIDIAccess) return false;
         try {
             this.access = await navigator.requestMIDIAccess();
-
-            // Escuchar cambios de conexión (si enchufas el USB después de cargar)
             this.access.onstatechange = (e) => this.handleStateChange(e);
-
             this.updateInputs();
             this.isReady = true;
-            console.log("🎹 MIDI Ready");
             return true;
         } catch (err) {
-            console.error("Fallo al acceder al MIDI", err);
+            console.error("MIDI Error", err);
             return false;
         }
     }
@@ -41,91 +40,107 @@ export class MidiController {
         this.inputs = [];
         for (let input of this.access.inputs.values()) {
             this.inputs.push(input);
-            // Reiniciamos el listener para evitar duplicados
             input.onmidimessage = (msg) => this.handleMessage(msg);
-            console.log(`Dispositivo conectado: ${input.name}`);
         }
-
         this.updateStatusUI();
     }
 
-    handleStateChange(e) {
-        console.log(`MIDI State Change: ${e.port.name} -> ${e.port.state}`);
-        this.updateInputs();
-    }
+    handleStateChange(e) { this.updateInputs(); }
 
     updateStatusUI() {
         const ui = document.getElementById('midiStatus');
         if (ui) {
-            if (this.inputs.length > 0) {
-                ui.innerText = `🎹 MIDI: ${this.inputs[0].name}`;
-                ui.style.color = "#27ae60";
-            } else {
-                ui.innerText = "🎹 MIDI: No detectado";
-                ui.style.color = "#888";
-            }
+            ui.innerText = this.inputs.length > 0
+            ? `🎹 MIDI: ${this.inputs[0].name} (MPE Ready)`
+            : "🎹 MIDI: No detectado";
+            ui.style.color = this.inputs.length > 0 ? "#2ecc71" : "#888";
         }
     }
 
     handleMessage(msg) {
         const [status, data1, data2] = msg.data;
-        const command = status & 0xf0; // Enmascarar canal
+        const command = status & 0xf0;
+        const channel = (status & 0x0f) + 1; // Canales 1-16
 
-        // Note On (144) con velocidad > 0
+        // 1. Note On (144)
         if (command === 144 && data2 > 0) {
-            this.noteOn(data1, data2);
+            this.noteOn(channel, data1, data2);
         }
-        // Note Off (128) o Note On con velocidad 0
+        // 2. Note Off (128)
         else if (command === 128 || (command === 144 && data2 === 0)) {
-            this.noteOff(data1);
+            this.noteOff(channel, data1);
+        }
+        // 3. Pitch Bend (224 / 0xE0)
+        else if (command === 224) {
+            this.handlePitchBend(channel, data1, data2);
         }
     }
 
-    noteOn(midiNote, velocity) {
-        // 1. Calcular paso relativo al Do Central (60)
-        const centerNote = 60;
-        const targetStep = midiNote - centerNote;
+    handlePitchBend(channel, lsb, msb) {
+        // Combinar los dos bytes de 7 bits en un valor de 14 bits (0 - 16383)
+        const bendValue = (msb << 7) | lsb;
+        this.channelBends[channel] = bendValue;
+    }
 
-        // 2. Buscar celda (usando el método optimizado si lo implementaste, o el normal)
-        // const matchingCell = this.grid.getCellBySteps(targetStep); // Si usaste la optimización
-        const cells = this.grid.getAll();
-        const matchingCell = cells.find(c => c.pitchSteps === targetStep);
+    noteOn(channel, midiNote, velocity) {
+        // 1. Calcular la afinación exacta usando el Pitch Bend almacenado para este canal
+        const bendValue = this.channelBends[channel];
+
+        // Normalizar bend de 0..16383 a -1..1
+        // 8192 es el centro (0 bend)
+        const normalizedBend = (bendValue - 8192) / 8192;
+
+        // Calcular semitonos de desviación
+        const bendSemitones = normalizedBend * this.pitchBendRangeSemitones;
+
+        // Calcular nota MIDI flotante (ej: 60.5 es un cuarto de tono sobre Do)
+        const preciseNote = midiNote + bendSemitones;
+
+        // 2. Convertir a Frecuencia (Hz)
+        // Fórmula estándar: f = 440 * 2^((d - 69)/12)
+        const targetFreq = 440 * Math.pow(2, (preciseNote - 69) / 12);
+
+        // 3. Buscar la celda más cercana en el Grid por frecuencia
+        const matchingCell = this.grid.getClosestCellByFreq(targetFreq);
 
         if (matchingCell) {
-            this.activeNotes.set(midiNote, matchingCell);
+            // Usamos una clave compuesta porque en MPE la misma nota puede sonar
+            // en canales distintos con afinaciones distintas.
+            const key = `${channel}-${midiNote}`;
+            this.activeNotes.set(key, matchingCell);
 
-            // Visual: Activar
+            // Activar visualmente (invoca al setter .active del Grid que gestiona los Slots)
+            // IMPORTANTE: MIDI siempre escribe en el Slot actual.
             if (!matchingCell.active) {
                 matchingCell.active = true;
                 this.grid.notify();
             }
 
-            // 1. Asegurar que el contexto de audio existe
-            if (!this.synth.ctx) {
-                this.synth.init();
-            }
+            // Audio
+            if (!this.synth.ctx) this.synth.init();
+            if (this.synth.ctx.state === 'suspended') this.synth.ctx.resume();
 
-            // 2. Intentar reanudar si está suspendido (Políticas de Autoplay del navegador)
-            if (this.synth.ctx.state === 'suspended') {
-                this.synth.ctx.resume();
-            }
-
-            // 3. Ahora sí es seguro acceder a currentTime
+            // Usamos la frecuencia REAL de la celda (afinada al sistema EDO),
+            // no la frecuencia bruta del MIDI, para asegurar que suena "dentro" del sistema.
             this.synth.playTone(matchingCell.freq, this.synth.ctx.currentTime);
         }
     }
 
-    noteOff(midiNote) {
-        if (this.activeNotes.has(midiNote)) {
-            const cell = this.activeNotes.get(midiNote);
+    noteOff(channel, midiNote) {
+        const key = `${channel}-${midiNote}`;
+        if (this.activeNotes.has(key)) {
+            const cell = this.activeNotes.get(key);
 
-            // Visual: Desactivar
+            // Desactivar visualmente
             if (cell.active) {
                 cell.active = false;
-                this.grid.notify(); // Redibujar
+                this.grid.notify();
             }
 
-            this.activeNotes.delete(midiNote);
+            this.activeNotes.delete(key);
+
+            // Opcional: Resetear el bend del canal al soltar la nota
+            // this.channelBends[channel] = 8192;
         }
     }
 }

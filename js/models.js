@@ -132,6 +132,29 @@ export class Grid {
     getHex(hex) { return this.map.get(hex.toString()); }
     getCellBySteps(steps) { return this.stepToHexMap.get(steps); }
 
+    // Buscar celda por frecuencia (para MIDI Microtonal/MPE)
+    getClosestCellByFreq(targetFreq) {
+        let closestCell = null;
+        let minDiff = Infinity;
+
+        // Iteramos todas las celdas activas e inactivas
+        for (let cell of this.map.values()) {
+            // Diferencia absoluta en Hz (podría ser en cents, pero Hz es suficiente si están cerca)
+            const diff = Math.abs(cell.freq - targetFreq);
+
+            // Buscamos la diferencia mínima
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestCell = cell;
+            }
+        }
+
+        // Umbral de seguridad: Si la nota más cercana está a más de ~50 cents,
+        // quizás no deberíamos activarla (opcional, aquí pongo un umbral laxo)
+        // 50 cents de error en Hz depende de la altura, pero vamos a confiar en el match más cercano.
+        return closestCell;
+    }
+
     toggleHex(hex) {
         const cell = this.getHex(hex);
         if (cell) {
